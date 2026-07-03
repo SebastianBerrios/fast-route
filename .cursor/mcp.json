@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "engram": {
+      "args": [
+        "mcp",
+        "--tools=agent"
+      ],
+      "command": "C:\\Users\\sberr\\AppData\\Local\\engram\\bin\\engram.exe"
+    }
+  }
+}
