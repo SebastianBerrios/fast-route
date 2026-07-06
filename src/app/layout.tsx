@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
+import ServiceWorkerRegister from "@/features/shell/ServiceWorkerRegister";
 
 const display = Bricolage_Grotesque({
   variable: "--font-bricolage",
@@ -29,7 +30,6 @@ export const viewport: Viewport = {
   themeColor: "#2563eb",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
 };
 
 // Applies the saved (or system) theme before paint to avoid a flash.
@@ -49,7 +49,10 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
       </head>
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        <ServiceWorkerRegister />
+        {children}
+      </body>
     </html>
   );
 }

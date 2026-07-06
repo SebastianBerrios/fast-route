@@ -17,6 +17,7 @@ export interface UseOrders {
   renameOrder: (id: string, customerName: string) => Promise<void>;
   removeOrder: (id: string) => Promise<void>;
   markDelivered: (id: string) => Promise<void>;
+  cancelOrder: (id: string) => Promise<void>;
   addItem: (input: NewOrderItemInput) => Promise<void>;
   removeItem: (itemId: string) => Promise<void>;
   /** Set (or clear, with null) the order this driver is heading to. */
@@ -127,6 +128,18 @@ export function useOrders(userId: string): UseOrders {
     [supabase, fetchOrders],
   );
 
+  const cancelOrder = useCallback(
+    async (id: string) => {
+      const { error } = await supabase
+        .from("orders")
+        .update({ status: "cancelled" })
+        .eq("id", id);
+      if (error) setError(error.message);
+      else await fetchOrders();
+    },
+    [supabase, fetchOrders],
+  );
+
   const addItem = useCallback(
     async (input: NewOrderItemInput) => {
       const { error } = await supabase.from("order_items").insert({
@@ -182,6 +195,7 @@ export function useOrders(userId: string): UseOrders {
     renameOrder,
     removeOrder,
     markDelivered,
+    cancelOrder,
     addItem,
     removeItem,
     setEnRoute,

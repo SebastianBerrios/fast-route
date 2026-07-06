@@ -16,6 +16,11 @@ import { useCustomers } from "@/features/customers/hooks/useCustomers";
 import { hasLocation, type Customer } from "@/features/customers/domain/types";
 import { useProducts } from "@/features/products/hooks/useProducts";
 import type { Product } from "@/features/products/domain/types";
+import { useLiveLocation } from "@/features/tracking/hooks/useLiveLocation";
+import {
+  useTenantDrivers,
+  type LiveDriver,
+} from "@/features/tracking/hooks/useTenantDrivers";
 
 export type PlannerMode = "driver" | "stop";
 export type OptimizeStatus = "idle" | "optimizing" | "error";
@@ -49,6 +54,12 @@ export interface DeliveryPlanner {
   activeProducts: Product[];
   /** The order locked as "en route" (fixed first stop), or null. */
   lockedOrderId: string | null;
+  /** Whether the current user is sharing their live GPS position. */
+  liveShare: boolean;
+  liveError: string | null;
+  /** Other drivers' live positions in the tenant (for monitoring). */
+  otherDrivers: LiveDriver[];
+  toggleLiveShare: () => void;
   handleMapClick: (coord: Coordinate) => void;
   addOrderForCustomer: (customerId: string) => void;
   setMode: (mode: PlannerMode) => void;
@@ -57,6 +68,7 @@ export interface DeliveryPlanner {
   removeOrder: (id: string) => void;
   renameOrder: (id: string, customerName: string) => void;
   markDelivered: (id: string) => void;
+  cancelOrder: (id: string) => void;
   addItem: (input: NewOrderItemInput) => void;
   removeItem: (itemId: string) => void;
   /** Mark an order as the driver's current target (locks it first). */
@@ -77,6 +89,7 @@ export function useDeliveryPlanner(
     renameOrder,
     removeOrder,
     markDelivered,
+    cancelOrder,
     addItem,
     removeItem,
     setEnRoute,
@@ -106,6 +119,19 @@ export function useDeliveryPlanner(
   const [route, setRoute] = useState<OptimizedRoute | null>(null);
   const [optimizeStatus, setOptimizeStatus] = useState<OptimizeStatus>("idle");
   const [optimizeError, setOptimizeError] = useState<string | null>(null);
+
+  const {
+    sharing: liveShare,
+    coord: liveCoord,
+    error: liveError,
+    toggle: toggleLiveShare,
+  } = useLiveLocation(userId);
+  const otherDrivers = useTenantDrivers(userId);
+
+  // While sharing live GPS, the driver marker follows the real position.
+  useEffect(() => {
+    if (liveShare && liveCoord) setDriver(liveCoord);
+  }, [liveShare, liveCoord]);
 
   // Content signature so the optimize effect only reruns on real changes,
   // not on every realtime refetch that returns identical data.
@@ -255,6 +281,10 @@ export function useDeliveryPlanner(
     locatedCustomers,
     activeProducts,
     lockedOrderId,
+    liveShare,
+    liveError,
+    otherDrivers,
+    toggleLiveShare,
     handleMapClick,
     addOrderForCustomer,
     setMode,
@@ -263,6 +293,7 @@ export function useDeliveryPlanner(
     removeOrder: (id) => void removeOrder(id),
     renameOrder: (id, name) => void renameOrder(id, name),
     markDelivered: (id) => void markDelivered(id),
+    cancelOrder: (id) => void cancelOrder(id),
     addItem: (input) => void addItem(input),
     removeItem: (itemId) => void removeItem(itemId),
     goToOrder: (id) => void setEnRoute(id),

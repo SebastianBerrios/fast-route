@@ -10,6 +10,7 @@ import {
   wazePointUrl,
 } from "@/features/routing/lib/navLinks";
 import StopList from "@/features/routing/components/StopList";
+import OnboardingHint from "@/features/shell/OnboardingHint";
 import { can, type Permission } from "@/features/auth/domain/permissions";
 import { formatPrice } from "@/features/products/domain/types";
 
@@ -67,6 +68,7 @@ export default function RoutePlanner({
           driver={driver}
           orderedStops={orderedStops}
           route={route}
+          otherDrivers={planner.otherDrivers}
           onMapClick={planner.handleMapClick}
         />
         <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-lg border border-line bg-surface/90 px-3 py-2 text-xs shadow-sm backdrop-blur">
@@ -86,6 +88,11 @@ export default function RoutePlanner({
           </h1>
           <p className="text-sm text-muted">Optimización en tiempo real</p>
         </header>
+
+        <OnboardingHint
+          permissions={permissions}
+          show={planner.activeProducts.length === 0}
+        />
 
         {/* Summary */}
         <section className="rounded-xl border border-line bg-background p-3">
@@ -210,6 +217,25 @@ export default function RoutePlanner({
           </button>
         )}
 
+        {canDeliver && (
+          <button
+            type="button"
+            onClick={planner.toggleLiveShare}
+            className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              planner.liveShare
+                ? "bg-green-600 text-white hover:bg-green-700"
+                : "border border-line hover:bg-black/5 dark:hover:bg-white/10"
+            }`}
+          >
+            {planner.liveShare
+              ? "📡 Compartiendo ubicación — tocá para parar"
+              : "📡 Compartir mi ubicación en vivo"}
+          </button>
+        )}
+        {planner.liveError && (
+          <p className="text-sm text-red-600">{planner.liveError}</p>
+        )}
+
         {/* Orders */}
         <section className="flex flex-col gap-2">
           <h2 className="flex items-center justify-between text-sm font-semibold text-muted">
@@ -252,6 +278,7 @@ export default function RoutePlanner({
             onAddItem={planner.addItem}
             onRemoveItem={planner.removeItem}
             onGoTo={planner.goToOrder}
+            onCancel={planner.cancelOrder}
           />
         </section>
       </aside>

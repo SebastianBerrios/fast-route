@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Coordinate, OptimizedRoute, Stop } from "@/features/routing/domain/types";
+import type { LiveDriver } from "@/features/tracking/hooks/useTenantDrivers";
 
 // OpenFreeMap: community-hosted vector tiles. 100% free, no API key.
 const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
@@ -16,6 +17,7 @@ interface RouteMapProps {
   driver: Coordinate | null;
   orderedStops: Stop[];
   route: OptimizedRoute | null;
+  otherDrivers?: LiveDriver[];
   onMapClick: (coord: Coordinate) => void;
 }
 
@@ -59,10 +61,30 @@ function stopMarkerElement(order: number): HTMLElement {
   return el;
 }
 
+function otherDriverMarkerElement(): HTMLElement {
+  const el = document.createElement("div");
+  el.textContent = "🛵";
+  Object.assign(el.style, {
+    fontSize: "18px",
+    width: "32px",
+    height: "32px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "#16a34a",
+    borderRadius: "50%",
+    border: "2px solid #fff",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.4)",
+    cursor: "default",
+  } satisfies Partial<CSSStyleDeclaration>);
+  return el;
+}
+
 export default function RouteMap({
   driver,
   orderedStops,
   route,
+  otherDrivers = [],
   onMapClick,
 }: RouteMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -148,7 +170,17 @@ export default function RouteMap({
         .addTo(map);
       markersRef.current.push(marker);
     });
-  }, [driver, orderedStops]);
+
+    otherDrivers.forEach((d) => {
+      const marker = new maplibregl.Marker({
+        element: otherDriverMarkerElement(),
+      })
+        .setLngLat([d.lng, d.lat])
+        .setPopup(new maplibregl.Popup({ offset: 22 }).setText(`🛵 ${d.name}`))
+        .addTo(map);
+      markersRef.current.push(marker);
+    });
+  }, [driver, orderedStops, otherDrivers]);
 
   // Sync the route line geometry.
   useEffect(() => {

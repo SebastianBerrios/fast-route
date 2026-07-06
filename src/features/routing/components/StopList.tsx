@@ -22,6 +22,7 @@ interface StopListProps {
  onAddItem: (input: NewOrderItemInput) => void;
  onRemoveItem: (itemId: string) => void;
  onGoTo: (id: string) => void;
+ onCancel: (id: string) => void;
 }
 
 export default function StopList({
@@ -38,6 +39,7 @@ export default function StopList({
  onAddItem,
  onRemoveItem,
  onGoTo,
+ onCancel,
 }: StopListProps) {
  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -155,7 +157,7 @@ export default function StopList({
  </div>
 
  {isOpen && (
- <div className="mt-2">
+ <div className="mt-2 flex flex-col gap-2">
  <OrderItemsEditor
  order={order}
  products={products}
@@ -163,6 +165,15 @@ export default function StopList({
  onAddItem={onAddItem}
  onRemoveItem={onRemoveItem}
  />
+ {canDelete && (
+ <button
+ type="button"
+ onClick={() => onCancel(order.id)}
+ className="self-start rounded-md px-2 py-1 text-xs text-amber-600 transition-colors hover:bg-amber-500/10"
+ >
+ Cancelar pedido
+ </button>
+ )}
  </div>
  )}
  </li>
