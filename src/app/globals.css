@@ -1,26 +1,45 @@
 @import "tailwindcss";
 
+/* Class-based dark mode: `dark:` applies when <html> (or an ancestor) has .dark */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f7f6f3; /* warm paper */
+  --surface: #ffffff;
+  --foreground: #191817;
+  --muted: #6b6862;
+  --border: #e7e4de;
+  --brand: #2563eb;
+}
+
+.dark {
+  --background: #0b0c0e;
+  --surface: #16181c;
+  --foreground: #e9e8e6;
+  --muted: #9a978f;
+  --border: #262a30;
+  --brand: #3b82f6;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-muted: var(--muted);
+  --color-line: var(--border);
+  --color-brand: var(--brand);
+  --font-sans: var(--font-plex-sans);
+  --font-display: var(--font-bricolage);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Subtle, themed scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }

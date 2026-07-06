@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local AI/agent tooling (not part of the app)
+.atl/
+.config/
+.copilot/
+.cursor/
+.gemini/
+.claude/settings.local.json
