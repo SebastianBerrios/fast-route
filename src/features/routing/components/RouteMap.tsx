@@ -18,7 +18,7 @@ interface RouteMapProps {
   orderedStops: Stop[];
   route: OptimizedRoute | null;
   otherDrivers?: LiveDriver[];
-  onMapClick: (coord: Coordinate) => void;
+  onMapClick?: (coord: Coordinate) => void;
 }
 
 function driverMarkerElement(): HTMLElement {
@@ -132,7 +132,7 @@ export default function RouteMap({
     });
 
     map.on("click", (e) => {
-      clickHandlerRef.current({ lng: e.lngLat.lng, lat: e.lngLat.lat });
+      clickHandlerRef.current?.({ lng: e.lngLat.lng, lat: e.lngLat.lat });
     });
 
     return () => {

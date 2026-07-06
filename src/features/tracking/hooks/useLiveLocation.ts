@@ -11,6 +11,8 @@ export interface LiveLocation {
   coord: Coordinate | null;
   error: string | null;
   toggle: () => void;
+  /** One-shot: read the current GPS position without broadcasting. */
+  locateOnce: () => void;
 }
 
 /**
@@ -80,8 +82,29 @@ export function useLiveLocation(userId: string): LiveLocation {
     else start();
   }, [sharing, start, stop]);
 
+  const locateOnce = useCallback(() => {
+    if (typeof navigator === "undefined" || !("geolocation" in navigator)) {
+      setError("Este dispositivo no permite geolocalización.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCoord({ lng: pos.coords.longitude, lat: pos.coords.latitude });
+        setError(null);
+      },
+      (err) => {
+        setError(
+          err.code === err.PERMISSION_DENIED
+            ? "Permiso de ubicación denegado."
+            : "No se pudo obtener la ubicación.",
+        );
+      },
+      { enableHighAccuracy: true, timeout: 15000 },
+    );
+  }, []);
+
   // Stop watching on unmount (keep last shared position).
   useEffect(() => clearWatch, [clearWatch]);
 
-  return { sharing, coord, error, toggle };
+  return { sharing, coord, error, toggle, locateOnce };
 }

@@ -9,6 +9,7 @@ import type {
 } from "@/features/routing/domain/types";
 import { useOrders } from "@/features/orders/hooks/useOrders";
 import type {
+  NewOrderInput,
   NewOrderItemInput,
   Order,
 } from "@/features/orders/domain/types";
@@ -22,7 +23,6 @@ import {
   type LiveDriver,
 } from "@/features/tracking/hooks/useTenantDrivers";
 
-export type PlannerMode = "driver" | "stop";
 export type OptimizeStatus = "idle" | "optimizing" | "error";
 
 const DEBOUNCE_MS = 600;
@@ -38,8 +38,8 @@ function orderToStop(order: Order): Stop {
 }
 
 export interface DeliveryPlanner {
+  /** The current user's position (from GPS), used as the route start. */
   driver: Coordinate | null;
-  mode: PlannerMode;
   returnToStart: boolean;
   orderedOrders: Order[];
   orderedStops: Stop[];
@@ -48,44 +48,39 @@ export interface DeliveryPlanner {
   optimizeError: string | null;
   ordersLoading: boolean;
   ordersError: string | null;
-  /** Registered customers that have a saved location (usable for orders). */
+  /** Registered customers that have a saved location. */
   locatedCustomers: Customer[];
-  /** Active catalog products, for adding line items to orders. */
+  /** Active catalog products. */
   activeProducts: Product[];
   /** The order locked as "en route" (fixed first stop), or null. */
   lockedOrderId: string | null;
-  /** Whether the current user is sharing their live GPS position. */
   liveShare: boolean;
   liveError: string | null;
-  /** Other drivers' live positions in the tenant (for monitoring). */
   otherDrivers: LiveDriver[];
   toggleLiveShare: () => void;
-  handleMapClick: (coord: Coordinate) => void;
-  addOrderForCustomer: (customerId: string) => void;
-  setMode: (mode: PlannerMode) => void;
+  /** Refresh the user's GPS position (one-shot). */
+  locateMe: () => void;
   setReturnToStart: (value: boolean) => void;
-  clearDriver: () => void;
+  createOrderWithItems: (
+    input: NewOrderInput,
+    items: Omit<NewOrderItemInput, "orderId">[],
+  ) => Promise<boolean>;
   removeOrder: (id: string) => void;
   renameOrder: (id: string, customerName: string) => void;
   markDelivered: (id: string) => void;
   cancelOrder: (id: string) => void;
   addItem: (input: NewOrderItemInput) => void;
   removeItem: (itemId: string) => void;
-  /** Mark an order as the driver's current target (locks it first). */
   goToOrder: (id: string) => void;
-  /** Clear the lock and re-optimize the whole route from scratch. */
   optimizeRoute: () => void;
 }
 
-export function useDeliveryPlanner(
-  userId: string,
-  canCreateOrders: boolean,
-): DeliveryPlanner {
+export function useDeliveryPlanner(userId: string): DeliveryPlanner {
   const {
     orders,
     loading: ordersLoading,
     error: ordersError,
-    createOrder,
+    createOrderWithItems,
     renameOrder,
     removeOrder,
     markDelivered,
@@ -95,7 +90,6 @@ export function useDeliveryPlanner(
     setEnRoute,
   } = useOrders(userId);
 
-  // The order this driver is currently heading to (locked as the first stop).
   const lockedOrderId = useMemo(
     () => orders.find((o) => o.enRouteBy === userId)?.id ?? null,
     [orders, userId],
@@ -114,7 +108,6 @@ export function useDeliveryPlanner(
   );
 
   const [driver, setDriver] = useState<Coordinate | null>(null);
-  const [mode, setMode] = useState<PlannerMode>("driver");
   const [returnToStart, setReturnToStart] = useState(true);
   const [route, setRoute] = useState<OptimizedRoute | null>(null);
   const [optimizeStatus, setOptimizeStatus] = useState<OptimizeStatus>("idle");
@@ -125,16 +118,19 @@ export function useDeliveryPlanner(
     coord: liveCoord,
     error: liveError,
     toggle: toggleLiveShare,
+    locateOnce,
   } = useLiveLocation(userId);
   const otherDrivers = useTenantDrivers(userId);
 
-  // While sharing live GPS, the driver marker follows the real position.
+  // Ask for the user's position once on mount; the driver start follows GPS.
   useEffect(() => {
-    if (liveShare && liveCoord) setDriver(liveCoord);
-  }, [liveShare, liveCoord]);
+    locateOnce();
+  }, [locateOnce]);
 
-  // Content signature so the optimize effect only reruns on real changes,
-  // not on every realtime refetch that returns identical data.
+  useEffect(() => {
+    if (liveCoord) setDriver(liveCoord);
+  }, [liveCoord]);
+
   const stopsSignature = useMemo(
     () =>
       orders
@@ -146,41 +142,7 @@ export function useDeliveryPlanner(
   const ordersRef = useRef(orders);
   ordersRef.current = orders;
 
-  const handleMapClick = useCallback(
-    (coord: Coordinate) => {
-      // Users who can't create orders only ever set the driver location.
-      if (!canCreateOrders || mode === "driver" || !driver) {
-        setDriver(coord);
-        if (canCreateOrders) setMode("stop");
-      } else {
-        void createOrder({ lng: coord.lng, lat: coord.lat });
-      }
-    },
-    [mode, driver, createOrder, canCreateOrders],
-  );
-
-  const addOrderForCustomer = useCallback(
-    (customerId: string) => {
-      const customer = locatedCustomers.find((c) => c.id === customerId);
-      if (!customer || customer.lng == null || customer.lat == null) return;
-      void createOrder({
-        lng: customer.lng,
-        lat: customer.lat,
-        customerName: customer.name,
-        customerId: customer.id,
-      });
-    },
-    [locatedCustomers, createOrder],
-  );
-
-  const clearDriver = useCallback(() => {
-    setDriver(null);
-    setRoute(null);
-    setMode("driver");
-  }, []);
-
-  // Recompute the optimal route whenever the stops, driver, or return
-  // preference change. Debounced so a burst of new orders yields one request.
+  // Recompute the optimal route when stops, driver or return preference change.
   useEffect(() => {
     if (!driver || ordersRef.current.length === 0) {
       setRoute(null);
@@ -199,8 +161,6 @@ export function useDeliveryPlanner(
         ? (current.find((o) => o.id === lockedOrderId) ?? null)
         : null;
 
-      // Locked order is fixed first; the rest optimize from there.
-      // The server draws the real road leg driver→locked and composes it.
       const restStops = current
         .filter((o) => o.id !== locked?.id)
         .map(orderToStop);
@@ -250,7 +210,6 @@ export function useDeliveryPlanner(
     };
   }, [stopsSignature, driver, returnToStart, lockedOrderId]);
 
-  // Orders sorted by the optimized visiting order (insertion order until solved).
   const orderedOrders = useMemo(() => {
     if (!route) return orders;
     const byId = new Map(orders.map((o) => [o.id, o]));
@@ -269,7 +228,6 @@ export function useDeliveryPlanner(
 
   return {
     driver,
-    mode,
     returnToStart,
     orderedOrders,
     orderedStops,
@@ -285,11 +243,9 @@ export function useDeliveryPlanner(
     liveError,
     otherDrivers,
     toggleLiveShare,
-    handleMapClick,
-    addOrderForCustomer,
-    setMode,
+    locateMe: locateOnce,
     setReturnToStart,
-    clearDriver,
+    createOrderWithItems,
     removeOrder: (id) => void removeOrder(id),
     renameOrder: (id, name) => void renameOrder(id, name),
     markDelivered: (id) => void markDelivered(id),

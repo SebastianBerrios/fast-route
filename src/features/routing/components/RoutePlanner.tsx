@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import dynamic from "next/dynamic";
 import { useDeliveryPlanner } from "@/features/routing/hooks/useDeliveryPlanner";
 import { formatDistance, formatDuration } from "@/features/routing/lib/geo";
@@ -10,11 +11,15 @@ import {
   wazePointUrl,
 } from "@/features/routing/lib/navLinks";
 import StopList from "@/features/routing/components/StopList";
+import OrderForm from "@/features/orders/components/OrderForm";
 import OnboardingHint from "@/features/shell/OnboardingHint";
 import { can, type Permission } from "@/features/auth/domain/permissions";
 import { formatPrice } from "@/features/products/domain/types";
+import type {
+  NewOrderInput,
+  NewOrderItemInput,
+} from "@/features/orders/domain/types";
 
-// MapLibre needs the browser; never render it on the server.
 const RouteMap = dynamic(
   () => import("@/features/routing/components/RouteMap"),
   {
@@ -43,7 +48,7 @@ export default function RoutePlanner({
   const canDeliver = can(permissions, "orders.deliver");
   const canManage = can(permissions, "orders.manage");
 
-  const planner = useDeliveryPlanner(userId, canCreate);
+  const planner = useDeliveryPlanner(userId);
   const {
     driver,
     orderedOrders,
@@ -52,13 +57,25 @@ export default function RoutePlanner({
     optimizeStatus,
     optimizeError,
     ordersError,
-    mode,
     returnToStart,
   } = planner;
+
+  const [showForm, setShowForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const stopCoords = orderedStops.map((s) => s.coordinate);
   const nextStop = orderedStops[0]?.coordinate;
   const showNav = canDeliver && orderedStops.length > 0;
+
+  const handleCreate = async (
+    input: NewOrderInput,
+    items: Omit<NewOrderItemInput, "orderId">[],
+  ) => {
+    setSubmitting(true);
+    const ok = await planner.createOrderWithItems(input, items);
+    setSubmitting(false);
+    if (ok) setShowForm(false);
+  };
 
   return (
     <div className="flex h-full flex-col md:flex-row">
@@ -69,14 +86,11 @@ export default function RoutePlanner({
           orderedStops={orderedStops}
           route={route}
           otherDrivers={planner.otherDrivers}
-          onMapClick={planner.handleMapClick}
         />
         <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-lg border border-line bg-surface/90 px-3 py-2 text-xs shadow-sm backdrop-blur">
-          {!driver
-            ? "🚚 Hacé clic para marcar la ubicación del repartidor"
-            : mode === "driver" || !canCreate
-              ? "🚚 Hacé clic para reubicar al repartidor"
-              : "📍 Hacé clic para agregar un pedido"}
+          {driver
+            ? "📍 Tu ubicación es el punto de partida"
+            : "📍 Activá tu ubicación para calcular la ruta"}
         </div>
       </div>
 
@@ -89,10 +103,17 @@ export default function RoutePlanner({
           <p className="text-sm text-muted">Optimización en tiempo real</p>
         </header>
 
-        <OnboardingHint
-          permissions={permissions}
-          show={planner.activeProducts.length === 0}
-        />
+        <OnboardingHint permissions={permissions} />
+
+        {canCreate && (
+          <button
+            type="button"
+            onClick={() => setShowForm(true)}
+            className="rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand/90"
+          >
+            + Nuevo pedido
+          </button>
+        )}
 
         {/* Summary */}
         <section className="rounded-xl border border-line bg-background p-3">
@@ -126,7 +147,7 @@ export default function RoutePlanner({
             <p className="text-sm text-muted">
               {driver
                 ? "Agregá al menos un pedido para calcular la ruta óptima."
-                : "Marcá la ubicación del repartidor para empezar."}
+                : "Activá tu ubicación para empezar."}
             </p>
           )}
         </section>
@@ -179,15 +200,14 @@ export default function RoutePlanner({
           </p>
         )}
 
-        {/* Controls */}
+        {/* Location + route controls */}
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => planner.setMode("driver")}
-            disabled={!driver}
-            className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 disabled:opacity-40 dark:hover:bg-white/10"
+            onClick={planner.locateMe}
+            className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/10"
           >
-            Reubicar repartidor
+            📍 Actualizar mi ubicación
           </button>
           <label className="flex items-center gap-2 text-sm">
             <input
@@ -197,15 +217,10 @@ export default function RoutePlanner({
             />
             Volver al inicio
           </label>
-          <button
-            type="button"
-            onClick={planner.clearDriver}
-            disabled={!driver}
-            className="ml-auto rounded-lg px-3 py-1.5 text-sm text-red-600 transition-colors hover:bg-red-500/10 disabled:opacity-40"
-          >
-            Quitar repartidor
-          </button>
         </div>
+        {planner.liveError && (
+          <p className="text-sm text-red-600">{planner.liveError}</p>
+        )}
 
         {canDeliver && planner.lockedOrderId && (
           <button
@@ -232,9 +247,6 @@ export default function RoutePlanner({
               : "📡 Compartir mi ubicación en vivo"}
           </button>
         )}
-        {planner.liveError && (
-          <p className="text-sm text-red-600">{planner.liveError}</p>
-        )}
 
         {/* Orders */}
         <section className="flex flex-col gap-2">
@@ -248,22 +260,6 @@ export default function RoutePlanner({
               </span>
             )}
           </h2>
-          {canCreate && planner.locatedCustomers.length > 0 && (
-            <select
-              value=""
-              onChange={(e) => {
-                if (e.target.value) planner.addOrderForCustomer(e.target.value);
-              }}
-              className="rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-brand"
-            >
-              <option value="">+ Pedido para un cliente…</option>
-              {planner.locatedCustomers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          )}
           <StopList
             orders={orderedOrders}
             products={planner.activeProducts}
@@ -282,6 +278,16 @@ export default function RoutePlanner({
           />
         </section>
       </aside>
+
+      {showForm && (
+        <OrderForm
+          customers={planner.locatedCustomers}
+          products={planner.activeProducts}
+          submitting={submitting}
+          onSubmit={handleCreate}
+          onClose={() => setShowForm(false)}
+        />
+      )}
     </div>
   );
 }

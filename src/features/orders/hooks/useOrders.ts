@@ -14,6 +14,10 @@ export interface UseOrders {
   loading: boolean;
   error: string | null;
   createOrder: (input: NewOrderInput) => Promise<void>;
+  createOrderWithItems: (
+    input: NewOrderInput,
+    items: Omit<NewOrderItemInput, "orderId">[],
+  ) => Promise<boolean>;
   renameOrder: (id: string, customerName: string) => Promise<void>;
   removeOrder: (id: string) => Promise<void>;
   markDelivered: (id: string) => Promise<void>;
@@ -128,6 +132,46 @@ export function useOrders(userId: string): UseOrders {
     [supabase, fetchOrders],
   );
 
+  const createOrderWithItems = useCallback(
+    async (
+      input: NewOrderInput,
+      items: Omit<NewOrderItemInput, "orderId">[],
+    ) => {
+      const { data, error } = await supabase
+        .from("orders")
+        .insert({
+          created_by: userId,
+          lng: input.lng,
+          lat: input.lat,
+          customer_name: input.customerName ?? null,
+          note: input.note ?? null,
+          customer_id: input.customerId ?? null,
+        })
+        .select("id")
+        .single();
+      if (error || !data) {
+        setError(error?.message ?? "No se pudo crear el pedido.");
+        return false;
+      }
+      if (items.length > 0) {
+        const rows = items.map((it) => ({
+          order_id: data.id,
+          product_id: it.productId,
+          product_name: it.productName,
+          quantity: it.quantity,
+          unit_price: it.unitPrice,
+        }));
+        const { error: itemsErr } = await supabase
+          .from("order_items")
+          .insert(rows);
+        if (itemsErr) setError(itemsErr.message);
+      }
+      await fetchOrders();
+      return true;
+    },
+    [supabase, userId, fetchOrders],
+  );
+
   const cancelOrder = useCallback(
     async (id: string) => {
       const { error } = await supabase
@@ -192,6 +236,7 @@ export function useOrders(userId: string): UseOrders {
     loading,
     error,
     createOrder,
+    createOrderWithItems,
     renameOrder,
     removeOrder,
     markDelivered,

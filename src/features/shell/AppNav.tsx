@@ -16,6 +16,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Mapa", icon: "🗺️" },
+  { href: "/fleet", label: "Flota", icon: "🛰️", permission: "customers.manage" },
   { href: "/customers", label: "Clientes", icon: "👥", permission: "customers.manage" },
   { href: "/products", label: "Productos", icon: "📦", permission: "products.manage" },
   { href: "/sales", label: "Ventas", icon: "💰", permission: "sales.view" },
