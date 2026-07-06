@@ -69,6 +69,8 @@ export interface DeliveryPlanner {
   renameOrder: (id: string, customerName: string) => void;
   markDelivered: (id: string) => void;
   cancelOrder: (id: string) => void;
+  /** Assign an order to a driver, or free it up for anyone (null). */
+  assignOrder: (id: string, driverId: string | null) => void;
   addItem: (input: NewOrderItemInput) => void;
   removeItem: (itemId: string) => void;
   goToOrder: (id: string) => void;
@@ -85,10 +87,18 @@ export function useDeliveryPlanner(userId: string): DeliveryPlanner {
     removeOrder,
     markDelivered,
     cancelOrder,
+    assignOrder,
     addItem,
     removeItem,
     setEnRoute,
   } = useOrders(userId);
+
+  // Orders this user routes: assigned to them, or free for anyone to take.
+  // Orders assigned to another driver are excluded from the map and route.
+  const routableOrders = useMemo(
+    () => orders.filter((o) => o.assignedTo === null || o.assignedTo === userId),
+    [orders, userId],
+  );
 
   const lockedOrderId = useMemo(
     () => orders.find((o) => o.enRouteBy === userId)?.id ?? null,
@@ -133,14 +143,14 @@ export function useDeliveryPlanner(userId: string): DeliveryPlanner {
 
   const stopsSignature = useMemo(
     () =>
-      orders
+      routableOrders
         .map((o) => `${o.id}:${o.lng.toFixed(6)}:${o.lat.toFixed(6)}`)
         .join("|"),
-    [orders],
+    [routableOrders],
   );
 
-  const ordersRef = useRef(orders);
-  ordersRef.current = orders;
+  const ordersRef = useRef(routableOrders);
+  ordersRef.current = routableOrders;
 
   // Recompute the optimal route when stops, driver or return preference change.
   useEffect(() => {
@@ -210,20 +220,29 @@ export function useDeliveryPlanner(userId: string): DeliveryPlanner {
     };
   }, [stopsSignature, driver, returnToStart, lockedOrderId]);
 
-  const orderedOrders = useMemo(() => {
-    if (!route) return orders;
-    const byId = new Map(orders.map((o) => [o.id, o]));
+  // Routable orders in route order (these are the numbered map stops).
+  const orderedRoutable = useMemo(() => {
+    if (!route) return routableOrders;
+    const byId = new Map(routableOrders.map((o) => [o.id, o]));
     const ordered = route.order
       .map((id) => byId.get(id))
       .filter((o): o is Order => Boolean(o));
     const seen = new Set(route.order);
-    const rest = orders.filter((o) => !seen.has(o.id));
+    const rest = routableOrders.filter((o) => !seen.has(o.id));
     return [...ordered, ...rest];
-  }, [route, orders]);
+  }, [route, routableOrders]);
+
+  // Full list for the panel: routable first, then orders assigned to others.
+  const orderedOrders = useMemo(() => {
+    const others = orders.filter(
+      (o) => o.assignedTo !== null && o.assignedTo !== userId,
+    );
+    return [...orderedRoutable, ...others];
+  }, [orderedRoutable, orders, userId]);
 
   const orderedStops = useMemo(
-    () => orderedOrders.map(orderToStop),
-    [orderedOrders],
+    () => orderedRoutable.map(orderToStop),
+    [orderedRoutable],
   );
 
   return {
@@ -250,6 +269,7 @@ export function useDeliveryPlanner(userId: string): DeliveryPlanner {
     renameOrder: (id, name) => void renameOrder(id, name),
     markDelivered: (id) => void markDelivered(id),
     cancelOrder: (id) => void cancelOrder(id),
+    assignOrder: (id, driverId) => void assignOrder(id, driverId),
     addItem: (input) => void addItem(input),
     removeItem: (itemId) => void removeItem(itemId),
     goToOrder: (id) => void setEnRoute(id),

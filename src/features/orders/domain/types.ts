@@ -29,6 +29,8 @@ export interface Order {
   deliveredBy: string | null;
   /** The driver currently heading to this order (locked as their next stop). */
   enRouteBy: string | null;
+  /** Driver this order is assigned to; null = free for anyone to take. */
+  assignedTo: string | null;
   items: OrderItem[];
   /** Sum of quantity * unitPrice across items. */
   total: number;
@@ -42,6 +44,8 @@ export interface NewOrderInput {
   note?: string | null;
   /** Set when the order is for a registered customer. */
   customerId?: string | null;
+  /** Driver to assign the order to; null/undefined leaves it free. */
+  assignedTo?: string | null;
 }
 
 /** Fields for adding a product line to an order. */
@@ -86,6 +90,7 @@ export function rowToOrder(row: OrderRow & { order_items?: OrderItemRow[] }): Or
     deliveredAt: row.delivered_at,
     deliveredBy: row.delivered_by,
     enRouteBy: row.en_route_by,
+    assignedTo: row.assigned_to,
     items,
     total: items.reduce((sum, i) => sum + lineTotal(i), 0),
   };

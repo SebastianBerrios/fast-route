@@ -9,6 +9,7 @@ import type {
   NewOrderInput,
   NewOrderItemInput,
 } from "@/features/orders/domain/types";
+import type { Deliverer } from "@/features/orders/hooks/useDeliverers";
 
 const LocationPicker = dynamic(
   () => import("@/features/customers/components/LocationPicker"),
@@ -32,6 +33,7 @@ interface GeoResult {
 interface OrderFormProps {
   customers: Customer[];
   products: Product[];
+  deliverers: Deliverer[];
   submitting?: boolean;
   onSubmit: (input: NewOrderInput, items: Item[]) => void;
   onClose: () => void;
@@ -43,6 +45,7 @@ const inputClass =
 export default function OrderForm({
   customers,
   products,
+  deliverers,
   submitting,
   onSubmit,
   onClose,
@@ -51,6 +54,7 @@ export default function OrderForm({
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [note, setNote] = useState("");
+  const [assignedTo, setAssignedTo] = useState("");
   const [location, setLocation] = useState<Coordinate | null>(null);
   const [focus, setFocus] = useState<Coordinate | null>(null);
   const [geoStatus, setGeoStatus] = useState<
@@ -126,6 +130,7 @@ export default function OrderForm({
         customerName: name.trim() || null,
         note: note.trim() || null,
         customerId: customerId || null,
+        assignedTo: assignedTo || null,
       },
       items,
     );
@@ -251,6 +256,25 @@ export default function OrderForm({
               onChange={(e) => setNote(e.target.value)}
             />
           </label>
+
+          {/* Assignment */}
+          {deliverers.length > 0 && (
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-muted">Asignar a</span>
+              <select
+                value={assignedTo}
+                onChange={(e) => setAssignedTo(e.target.value)}
+                className={inputClass}
+              >
+                <option value="">🟢 Libre — cualquier repartidor lo toma</option>
+                {deliverers.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    👤 {d.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           {/* Products */}
           <div className="flex flex-col gap-2 rounded-lg border border-line p-3">

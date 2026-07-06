@@ -22,6 +22,8 @@ export interface UseOrders {
   removeOrder: (id: string) => Promise<void>;
   markDelivered: (id: string) => Promise<void>;
   cancelOrder: (id: string) => Promise<void>;
+  /** Assign the order to a driver, or free it up for anyone (null). */
+  assignOrder: (id: string, driverId: string | null) => Promise<void>;
   addItem: (input: NewOrderItemInput) => Promise<void>;
   removeItem: (itemId: string) => Promise<void>;
   /** Set (or clear, with null) the order this driver is heading to. */
@@ -92,6 +94,7 @@ export function useOrders(userId: string): UseOrders {
         customer_name: input.customerName ?? null,
         note: input.note ?? null,
         customer_id: input.customerId ?? null,
+        assigned_to: input.assignedTo ?? null,
       });
       if (error) setError(error.message);
       else await fetchOrders();
@@ -146,6 +149,7 @@ export function useOrders(userId: string): UseOrders {
           customer_name: input.customerName ?? null,
           note: input.note ?? null,
           customer_id: input.customerId ?? null,
+          assigned_to: input.assignedTo ?? null,
         })
         .select("id")
         .single();
@@ -177,6 +181,18 @@ export function useOrders(userId: string): UseOrders {
       const { error } = await supabase
         .from("orders")
         .update({ status: "cancelled" })
+        .eq("id", id);
+      if (error) setError(error.message);
+      else await fetchOrders();
+    },
+    [supabase, fetchOrders],
+  );
+
+  const assignOrder = useCallback(
+    async (id: string, driverId: string | null) => {
+      const { error } = await supabase
+        .from("orders")
+        .update({ assigned_to: driverId })
         .eq("id", id);
       if (error) setError(error.message);
       else await fetchOrders();
@@ -241,6 +257,7 @@ export function useOrders(userId: string): UseOrders {
     removeOrder,
     markDelivered,
     cancelOrder,
+    assignOrder,
     addItem,
     removeItem,
     setEnRoute,

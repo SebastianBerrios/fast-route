@@ -12,6 +12,7 @@ import {
 } from "@/features/routing/lib/navLinks";
 import StopList from "@/features/routing/components/StopList";
 import OrderForm from "@/features/orders/components/OrderForm";
+import { useDeliverers } from "@/features/orders/hooks/useDeliverers";
 import OnboardingHint from "@/features/shell/OnboardingHint";
 import { can, type Permission } from "@/features/auth/domain/permissions";
 import { formatPrice } from "@/features/products/domain/types";
@@ -49,6 +50,7 @@ export default function RoutePlanner({
   const canManage = can(permissions, "orders.manage");
 
   const planner = useDeliveryPlanner(userId);
+  const deliverers = useDeliverers();
   const {
     driver,
     orderedOrders,
@@ -263,6 +265,7 @@ export default function RoutePlanner({
           <StopList
             orders={orderedOrders}
             products={planner.activeProducts}
+            deliverers={deliverers}
             currentUserId={userId}
             canCreate={canCreate}
             canDeliver={canDeliver}
@@ -271,6 +274,7 @@ export default function RoutePlanner({
             onRemove={planner.removeOrder}
             onRename={planner.renameOrder}
             onDelivered={planner.markDelivered}
+            onAssign={planner.assignOrder}
             onAddItem={planner.addItem}
             onRemoveItem={planner.removeItem}
             onGoTo={planner.goToOrder}
@@ -283,6 +287,7 @@ export default function RoutePlanner({
         <OrderForm
           customers={planner.locatedCustomers}
           products={planner.activeProducts}
+          deliverers={deliverers}
           submitting={submitting}
           onSubmit={handleCreate}
           onClose={() => setShowForm(false)}

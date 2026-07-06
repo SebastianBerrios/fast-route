@@ -7,10 +7,12 @@ import type {
 } from "@/features/orders/domain/types";
 import { formatPrice, type Product } from "@/features/products/domain/types";
 import OrderItemsEditor from "@/features/orders/components/OrderItemsEditor";
+import type { Deliverer } from "@/features/orders/hooks/useDeliverers";
 
 interface StopListProps {
  orders: Order[];
  products: Product[];
+ deliverers: Deliverer[];
  currentUserId: string;
  canCreate: boolean;
  canDeliver: boolean;
@@ -19,6 +21,7 @@ interface StopListProps {
  onRemove: (id: string) => void;
  onRename: (id: string, customerName: string) => void;
  onDelivered: (id: string) => void;
+ onAssign: (id: string, driverId: string | null) => void;
  onAddItem: (input: NewOrderItemInput) => void;
  onRemoveItem: (itemId: string) => void;
  onGoTo: (id: string) => void;
@@ -28,6 +31,7 @@ interface StopListProps {
 export default function StopList({
  orders,
  products,
+ deliverers,
  currentUserId,
  canCreate,
  canDeliver,
@@ -36,6 +40,7 @@ export default function StopList({
  onRemove,
  onRename,
  onDelivered,
+ onAssign,
  onAddItem,
  onRemoveItem,
  onGoTo,
@@ -67,6 +72,11 @@ export default function StopList({
  const canEdit = canManage || (isOwner && canCreate);
  const canDelete = canManage || isOwner;
  const isLocked = order.id === lockedOrderId;
+ const isFree = order.assignedTo === null;
+ const isMine = order.assignedTo === currentUserId;
+ const assignedName =
+ deliverers.find((d) => d.id === order.assignedTo)?.name ??
+ "otro repartidor";
  return (
  <li
  key={order.id}
@@ -154,6 +164,56 @@ export default function StopList({
  ✕
  </button>
  )}
+ </div>
+
+ {/* Assignment: distinguish free vs assigned, allow take/reassign */}
+ <div className="mt-1.5 flex items-center gap-2 pl-9 text-xs">
+ {isFree ? (
+ <span className="rounded-full bg-green-100 px-2 py-0.5 font-medium text-green-700 dark:bg-green-950 dark:text-green-300">
+ 🟢 Libre
+ </span>
+ ) : (
+ <span
+ className={`rounded-full px-2 py-0.5 font-medium ${
+ isMine
+ ? "bg-brand/15 text-brand"
+ : "bg-neutral-200 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
+ }`}
+ >
+ 👤 {isMine ? "Asignado a vos" : `Asignado a ${assignedName}`}
+ </span>
+ )}
+ {canEdit ? (
+ <select
+ value={order.assignedTo ?? ""}
+ onChange={(e) => onAssign(order.id, e.target.value || null)}
+ className="ml-auto rounded-md border border-line bg-background px-1.5 py-0.5 text-xs outline-none focus:border-brand"
+ aria-label="Asignar repartidor"
+ >
+ <option value="">Libre</option>
+ {deliverers.map((d) => (
+ <option key={d.id} value={d.id}>
+ {d.name}
+ </option>
+ ))}
+ </select>
+ ) : canDeliver && isFree ? (
+ <button
+ type="button"
+ onClick={() => onAssign(order.id, currentUserId)}
+ className="ml-auto rounded-md px-2 py-0.5 font-medium text-brand transition-colors hover:bg-blue-50 dark:hover:bg-blue-950"
+ >
+ Tomar
+ </button>
+ ) : canDeliver && isMine ? (
+ <button
+ type="button"
+ onClick={() => onAssign(order.id, null)}
+ className="ml-auto rounded-md px-2 py-0.5 text-muted transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+ >
+ Liberar
+ </button>
+ ) : null}
  </div>
 
  {isOpen && (
