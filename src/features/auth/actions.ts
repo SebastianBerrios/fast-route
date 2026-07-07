@@ -11,6 +11,19 @@ export interface AuthState {
 }
 
 /**
+ * Parse a coordinate form field. Returns null for missing, empty, or
+ * out-of-range values (note: Number("") is 0, so the empty check matters).
+ */
+function parseCoordinate(
+  value: FormDataEntryValue | null,
+  maxAbs: number,
+): number | null {
+  if (typeof value !== "string" || value.trim() === "") return null;
+  const num = Number(value);
+  return Number.isFinite(num) && Math.abs(num) <= maxAbs ? num : null;
+}
+
+/**
  * Single entry point for sign in and sign up, driven by the form's `intent`
  * field. Designed for React's useActionState (prevState, formData) signature.
  */
@@ -23,7 +36,18 @@ export async function authenticate(
   const password = String(formData.get("password") ?? "");
   const fullName = String(formData.get("full_name") ?? "").trim();
   const businessName = String(formData.get("business_name") ?? "").trim();
-  const city = String(formData.get("city") ?? "").trim();
+  // Prefer the bare city name captured when a suggestion was picked
+  // ("Tacna"); the visible field holds the full disambiguation label
+  // ("Tacna, Tacna, Peru") and is only a fallback.
+  const city =
+    String(formData.get("city_name") ?? "").trim() ||
+    String(formData.get("city") ?? "").trim();
+  const rawCountry = String(formData.get("country") ?? "").trim();
+  // Country must look like an ISO 3166-1 alpha-2/alpha-3 code; anything else
+  // is client-tampered or garbage and is treated as missing.
+  const country = /^[A-Za-z]{2,3}$/.test(rawCountry) ? rawCountry : "";
+  const centerLng = parseCoordinate(formData.get("center_lng"), 180);
+  const centerLat = parseCoordinate(formData.get("center_lat"), 90);
   const inviteCode = String(formData.get("invite_code") ?? "").trim();
 
   if (!email || !password) {
@@ -39,23 +63,30 @@ export async function authenticate(
       return { error: "Ingresá el nombre de tu negocio." };
     }
 
-    // For a brand-new business, geocode the city so we can store the tenant's
-    // region. Used later to bias address searches to that area. Geocoding is
-    // best-effort — a failure must never block sign-up.
+    // For a brand-new business, store the tenant's region. Used later to bias
+    // address searches to that area. The form's city autocomplete already
+    // supplies the coordinates and country; geocoding the free text is only a
+    // fallback and is best-effort — a failure must never block sign-up.
     const businessData: Record<string, string | number> = {
       business_name: businessName,
     };
     if (!inviteCode && city) {
       businessData.city = city;
-      try {
-        const [match] = await geocodeAddress(city);
-        if (match) {
-          businessData.center_lng = match.lng;
-          businessData.center_lat = match.lat;
-          if (match.country) businessData.country = match.country;
+      if (centerLng != null && centerLat != null) {
+        businessData.center_lng = centerLng;
+        businessData.center_lat = centerLat;
+        if (country) businessData.country = country;
+      } else {
+        try {
+          const [match] = await geocodeAddress(city);
+          if (match) {
+            businessData.center_lng = match.lng;
+            businessData.center_lat = match.lat;
+            if (match.country) businessData.country = match.country;
+          }
+        } catch {
+          // Ignore: tenant is created without coordinates; map falls back.
         }
-      } catch {
-        // Ignore: tenant is created without coordinates; map falls back.
       }
     }
 

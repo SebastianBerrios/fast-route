@@ -10,6 +10,8 @@ import { decodePolyline } from "@/features/routing/lib/geo";
 
 const ORS_OPTIMIZATION_URL = "https://api.openrouteservice.org/optimization";
 const ORS_GEOCODE_URL = "https://api.openrouteservice.org/geocode/search";
+const ORS_AUTOCOMPLETE_URL =
+  "https://api.openrouteservice.org/geocode/autocomplete";
 const ORS_DIRECTIONS_URL =
   "https://api.openrouteservice.org/v2/directions/driving-car";
 
@@ -196,6 +198,70 @@ export async function geocodeAddress(
       lng: f.geometry!.coordinates![0],
       lat: f.geometry!.coordinates![1],
       country: f.properties?.country_a ?? undefined,
+    }));
+}
+
+export interface CitySuggestion {
+  /** Full display label, e.g. "Tacna, Tacna, Peru". */
+  label: string;
+  /** City name alone, e.g. "Tacna". */
+  city: string;
+  /** ISO 3166-1 alpha-3 country code (e.g. "PER"), when the provider returns it. */
+  country?: string;
+  lng: number;
+  lat: number;
+}
+
+interface OrsAutocompleteResponse {
+  features?: Array<{
+    geometry?: { coordinates?: [number, number] };
+    properties?: {
+      name?: string;
+      label?: string;
+      country_a?: string;
+    };
+  }>;
+}
+
+/**
+ * Suggest cities worldwide matching a partial name, using OpenRouteService's
+ * (Pelias) autocomplete endpoint restricted to city-like layers.
+ *
+ * `localadmin` and `borough` are included alongside `locality` because in
+ * several countries (e.g. Peru's districts) the practical "city" a user types
+ * is indexed under those layers and `locality` alone returns thin results.
+ */
+export async function autocompleteCities(
+  text: string,
+): Promise<CitySuggestion[]> {
+  const apiKey = process.env.ORS_API_KEY;
+  if (!apiKey) {
+    throw new OpenRouteServiceError("Missing ORS_API_KEY.");
+  }
+
+  const url = new URL(ORS_AUTOCOMPLETE_URL);
+  url.searchParams.set("api_key", apiKey);
+  url.searchParams.set("text", text);
+  url.searchParams.set("layers", "locality,localadmin,borough");
+  url.searchParams.set("size", "5");
+
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new OpenRouteServiceError(
+      `City autocomplete failed (${res.status}). ${detail.slice(0, 200)}`,
+    );
+  }
+
+  const data = (await res.json()) as OrsAutocompleteResponse;
+  return (data.features ?? [])
+    .filter((f) => f.geometry?.coordinates && f.properties?.name)
+    .map((f) => ({
+      label: f.properties?.label ?? f.properties!.name!,
+      city: f.properties!.name!,
+      country: f.properties?.country_a ?? undefined,
+      lng: f.geometry!.coordinates![0],
+      lat: f.geometry!.coordinates![1],
     }));
 }
 

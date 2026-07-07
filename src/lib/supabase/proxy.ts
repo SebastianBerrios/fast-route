@@ -4,7 +4,8 @@ import type { Database } from "@/lib/supabase/database.types";
 import { getSupabaseEnv } from "@/lib/supabase/env";
 
 /** Routes reachable without a session. Everything else requires auth. */
-const PUBLIC_PATHS = ["/login"];
+// /api/cities backs the city autocomplete on the (unauthenticated) signup form.
+const PUBLIC_PATHS = ["/login", "/api/cities"];
 
 /**
  * Refreshes the Supabase session on every request and enforces auth.
@@ -38,7 +39,10 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const isPublic = PUBLIC_PATHS.some((p) => path.startsWith(p));
+  // Exact-or-slash matching so e.g. /api/cities-admin is NOT public.
+  const isPublic = PUBLIC_PATHS.some(
+    (p) => path === p || path.startsWith(p + "/"),
+  );
 
   // Not signed in and trying to reach something protected.
   if (!user && !isPublic) {
