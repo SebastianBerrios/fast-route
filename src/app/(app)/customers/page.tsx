@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/features/auth/server";
+import { getTenantLocation } from "@/features/tenants/server";
 import { can } from "@/features/auth/domain/permissions";
 import CustomersManager from "@/features/customers/components/CustomersManager";
 
@@ -8,6 +9,8 @@ export default async function CustomersPage() {
  const user = await getCurrentUser();
  if (!user) redirect("/login");
  if (!can(user.permissions, "customers.manage")) redirect("/");
+
+ const { center } = await getTenantLocation();
 
  return (
  <main className="mx-auto max-w-3xl p-6">
@@ -26,7 +29,7 @@ export default async function CustomersPage() {
  </Link>
  </div>
 
- <CustomersManager userId={user.id} />
+ <CustomersManager userId={user.id} defaultCenter={center ?? undefined} />
  </main>
  );
 }

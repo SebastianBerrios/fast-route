@@ -20,6 +20,7 @@ import type {
   NewOrderInput,
   NewOrderItemInput,
 } from "@/features/orders/domain/types";
+import type { Coordinate } from "@/features/routing/domain/types";
 
 const RouteMap = dynamic(
   () => import("@/features/routing/components/RouteMap"),
@@ -36,6 +37,8 @@ const RouteMap = dynamic(
 interface RoutePlannerProps {
   userId: string;
   permissions: Permission[];
+  /** The tenant's stored region, used to center the map and bias geocoding. */
+  defaultCenter?: Coordinate;
 }
 
 const navLinkClass =
@@ -44,6 +47,7 @@ const navLinkClass =
 export default function RoutePlanner({
   userId,
   permissions,
+  defaultCenter,
 }: RoutePlannerProps) {
   const canCreate = can(permissions, "orders.create");
   const canDeliver = can(permissions, "orders.deliver");
@@ -88,6 +92,7 @@ export default function RoutePlanner({
           orderedStops={orderedStops}
           route={route}
           otherDrivers={planner.otherDrivers}
+          defaultCenter={defaultCenter}
         />
         <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-lg border border-line bg-surface/90 px-3 py-2 text-xs shadow-sm backdrop-blur">
           {driver
@@ -289,6 +294,7 @@ export default function RoutePlanner({
           products={planner.activeProducts}
           deliverers={deliverers}
           submitting={submitting}
+          defaultCenter={defaultCenter}
           onSubmit={handleCreate}
           onClose={() => setShowForm(false)}
         />

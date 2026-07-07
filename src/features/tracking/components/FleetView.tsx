@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useTenantDrivers } from "@/features/tracking/hooks/useTenantDrivers";
+import type { Coordinate } from "@/features/routing/domain/types";
 
 const FleetMap = dynamic(
   () => import("@/features/tracking/components/FleetMap"),
@@ -27,13 +28,18 @@ function since(iso: string): string {
 }
 
 // Passing "" as the "current user" includes every driver (nothing is excluded).
-export default function FleetView() {
+export default function FleetView({
+  defaultCenter,
+}: {
+  /** The tenant's stored region, used to center the map. */
+  defaultCenter?: Coordinate;
+}) {
   const drivers = useTenantDrivers("");
 
   return (
     <div className="flex h-full flex-col gap-3 md:flex-row">
       <div className="h-[50vh] flex-1 overflow-hidden rounded-xl border border-line md:h-full">
-        <FleetMap drivers={drivers} />
+        <FleetMap drivers={drivers} defaultCenter={defaultCenter} />
       </div>
       <aside className="w-full shrink-0 md:w-72">
         <h2 className="mb-2 text-sm font-semibold text-muted">

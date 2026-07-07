@@ -132,20 +132,37 @@ export interface GeocodeResult {
   label: string;
   lng: number;
   lat: number;
+  /** ISO 3166-1 alpha-3 country code (e.g. "PER"), when the provider returns it. */
+  country?: string;
+}
+
+/** Optional spatial constraints to keep results near the business's region. */
+export interface GeocodeOptions {
+  /** Soft proximity bias: results near this point rank higher (never excluded). */
+  focus?: { lng: number; lat: number };
+  /** Hard filter by ISO 3166-1 country code (alpha-2 or alpha-3), e.g. "PER". */
+  country?: string;
 }
 
 interface OrsGeocodeResponse {
   features?: Array<{
     geometry?: { coordinates?: [number, number] };
-    properties?: { label?: string };
+    properties?: { label?: string; country_a?: string };
   }>;
 }
 
 /**
  * Forward-geocode a free-text address to candidate coordinates using
  * OpenRouteService (Pelias). Returns the top matches, best first.
+ *
+ * Pass `opts.focus` (usually the current map center) to bias results toward the
+ * business's region, and `opts.country` to hard-filter by country — together
+ * they stop an ambiguous street name from resolving to another city or country.
  */
-export async function geocodeAddress(text: string): Promise<GeocodeResult[]> {
+export async function geocodeAddress(
+  text: string,
+  opts: GeocodeOptions = {},
+): Promise<GeocodeResult[]> {
   const apiKey = process.env.ORS_API_KEY;
   if (!apiKey) {
     throw new OpenRouteServiceError("Missing ORS_API_KEY.");
@@ -155,6 +172,13 @@ export async function geocodeAddress(text: string): Promise<GeocodeResult[]> {
   url.searchParams.set("api_key", apiKey);
   url.searchParams.set("text", text);
   url.searchParams.set("size", "5");
+  if (opts.focus) {
+    url.searchParams.set("focus.point.lon", String(opts.focus.lng));
+    url.searchParams.set("focus.point.lat", String(opts.focus.lat));
+  }
+  if (opts.country) {
+    url.searchParams.set("boundary.country", opts.country);
+  }
 
   const res = await fetch(url, { headers: { Accept: "application/json" } });
   if (!res.ok) {
@@ -171,6 +195,7 @@ export async function geocodeAddress(text: string): Promise<GeocodeResult[]> {
       label: f.properties?.label ?? text,
       lng: f.geometry!.coordinates![0],
       lat: f.geometry!.coordinates![1],
+      country: f.properties?.country_a ?? undefined,
     }));
 }
 

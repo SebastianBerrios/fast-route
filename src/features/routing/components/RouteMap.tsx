@@ -18,6 +18,8 @@ interface RouteMapProps {
   orderedStops: Stop[];
   route: OptimizedRoute | null;
   otherDrivers?: LiveDriver[];
+  /** Initial map center (the tenant's region); falls back to Tacna. */
+  defaultCenter?: Coordinate;
   onMapClick?: (coord: Coordinate) => void;
 }
 
@@ -85,6 +87,7 @@ export default function RouteMap({
   orderedStops,
   route,
   otherDrivers = [],
+  defaultCenter,
   onMapClick,
 }: RouteMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -102,7 +105,9 @@ export default function RouteMap({
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: MAP_STYLE,
-      center: DEFAULT_CENTER,
+      center: defaultCenter
+        ? [defaultCenter.lng, defaultCenter.lat]
+        : DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
     });
     mapRef.current = map;

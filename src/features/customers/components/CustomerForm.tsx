@@ -3,6 +3,7 @@
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import type { Coordinate } from "@/features/routing/domain/types";
+import { DEFAULT_MAP_CENTER } from "@/features/routing/domain/constants";
 import type {
  Customer,
  CustomerInput,
@@ -29,6 +30,8 @@ interface GeoResult {
 interface CustomerFormProps {
  initial?: Customer | null;
  submitting?: boolean;
+ /** Map center used to bias geocoding and open the picker (tenant's region). */
+ defaultCenter?: Coordinate;
  onSubmit: (input: CustomerInput) => void;
  onCancel?: () => void;
 }
@@ -39,6 +42,7 @@ const inputClass =
 export default function CustomerForm({
  initial,
  submitting,
+ defaultCenter = DEFAULT_MAP_CENTER,
  onSubmit,
  onCancel,
 }: CustomerFormProps) {
@@ -68,8 +72,12 @@ export default function CustomerForm({
  if (!q) return;
  setGeoStatus("searching");
  setGeoResults([]);
+ // Bias results toward the current pin, or the tenant's region if none yet.
+ const bias = location ?? defaultCenter;
  try {
- const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
+ const res = await fetch(
+ `/api/geocode?q=${encodeURIComponent(q)}&lng=${bias.lng}&lat=${bias.lat}`,
+ );
  const data = await res.json();
  if (!res.ok) throw new Error(data?.error ?? "Error");
  const results = (data.results ?? []) as GeoResult[];
@@ -189,7 +197,12 @@ export default function CustomerForm({
  Ubicación{" "}
  {location ? "(hacé clic para ajustar el pin)" : "(buscá arriba o hacé clic en el mapa)"}
  </span>
- <LocationPicker value={location} focus={focus} onChange={setLocation} />
+ <LocationPicker
+ value={location}
+ focus={focus}
+ defaultCenter={defaultCenter}
+ onChange={setLocation}
+ />
  {location && (
  <p className="text-xs text-muted">
  {location.lat.toFixed(5)}, {location.lng.toFixed(5)}

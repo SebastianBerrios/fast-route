@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { geocodeAddress } from "@/features/routing/services/openrouteservice";
 
 export interface AuthState {
   error?: string;
@@ -22,6 +23,7 @@ export async function authenticate(
   const password = String(formData.get("password") ?? "");
   const fullName = String(formData.get("full_name") ?? "").trim();
   const businessName = String(formData.get("business_name") ?? "").trim();
+  const city = String(formData.get("city") ?? "").trim();
   const inviteCode = String(formData.get("invite_code") ?? "").trim();
 
   if (!email || !password) {
@@ -36,15 +38,34 @@ export async function authenticate(
     if (!inviteCode && !businessName) {
       return { error: "Ingresá el nombre de tu negocio." };
     }
+
+    // For a brand-new business, geocode the city so we can store the tenant's
+    // region. Used later to bias address searches to that area. Geocoding is
+    // best-effort — a failure must never block sign-up.
+    const businessData: Record<string, string | number> = {
+      business_name: businessName,
+    };
+    if (!inviteCode && city) {
+      businessData.city = city;
+      try {
+        const [match] = await geocodeAddress(city);
+        if (match) {
+          businessData.center_lng = match.lng;
+          businessData.center_lat = match.lat;
+          if (match.country) businessData.country = match.country;
+        }
+      } catch {
+        // Ignore: tenant is created without coordinates; map falls back.
+      }
+    }
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
           full_name: fullName,
-          ...(inviteCode
-            ? { invite_code: inviteCode }
-            : { business_name: businessName }),
+          ...(inviteCode ? { invite_code: inviteCode } : businessData),
         },
       },
     });

@@ -44,16 +44,32 @@ export default function AuthForm({ inviteCode }: { inviteCode?: string }) {
         )}
 
         {isSignup && !joining && (
-          <label className="flex flex-col gap-1 text-sm">
-            <span className={labelClass}>Nombre del negocio</span>
-            <input
-              name="business_name"
-              type="text"
-              required
-              placeholder="Ej: Agua Tacna Express"
-              className={inputClass}
-            />
-          </label>
+          <>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className={labelClass}>Nombre del negocio</span>
+              <input
+                name="business_name"
+                type="text"
+                required
+                placeholder="Ej: Agua Tacna Express"
+                className={inputClass}
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className={labelClass}>Ciudad del negocio</span>
+              <input
+                name="city"
+                type="text"
+                required
+                placeholder="Ej: Tacna, Perú"
+                className={inputClass}
+              />
+              <span className="text-xs text-muted">
+                Usamos tu ciudad para que las búsquedas de direcciones caigan en
+                tu zona y no en otro lugar.
+              </span>
+            </label>
+          </>
         )}
 
         {isSignup && (

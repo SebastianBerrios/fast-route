@@ -415,16 +415,28 @@ export type Database = {
       }
       tenants: {
         Row: {
+          center_lat: number | null
+          center_lng: number | null
+          city: string | null
+          country: string | null
           created_at: string
           id: string
           name: string
         }
         Insert: {
+          center_lat?: number | null
+          center_lng?: number | null
+          city?: string | null
+          country?: string | null
           created_at?: string
           id?: string
           name: string
         }
         Update: {
+          center_lat?: number | null
+          center_lng?: number | null
+          city?: string | null
+          country?: string | null
           created_at?: string
           id?: string
           name?: string

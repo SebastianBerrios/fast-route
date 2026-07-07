@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/features/auth/server";
+import { getTenantLocation } from "@/features/tenants/server";
 import { can } from "@/features/auth/domain/permissions";
 import FleetView from "@/features/tracking/components/FleetView";
 
@@ -8,6 +9,8 @@ export default async function FleetPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (!can(user.permissions, "customers.manage")) redirect("/");
+
+  const { center } = await getTenantLocation();
 
   return (
     <main className="flex h-full flex-col p-6">
@@ -29,7 +32,7 @@ export default async function FleetPage() {
       </div>
 
       <div className="min-h-0 flex-1">
-        <FleetView />
+        <FleetView defaultCenter={center ?? undefined} />
       </div>
     </main>
   );

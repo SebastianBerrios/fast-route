@@ -8,10 +8,18 @@ import {
  type Customer,
  type CustomerInput,
 } from "@/features/customers/domain/types";
+import type { Coordinate } from "@/features/routing/domain/types";
 
 type Editing = { mode: "new" } | { mode: "edit"; customer: Customer } | null;
 
-export default function CustomersManager({ userId }: { userId: string }) {
+export default function CustomersManager({
+ userId,
+ defaultCenter,
+}: {
+ userId: string;
+ /** The tenant's stored region, used to center the picker and bias geocoding. */
+ defaultCenter?: Coordinate;
+}) {
  const {
  customers,
  loading,
@@ -49,6 +57,7 @@ export default function CustomersManager({ userId }: { userId: string }) {
  <CustomerForm
  initial={editing.mode === "edit" ? editing.customer : null}
  submitting={submitting}
+ defaultCenter={defaultCenter}
  onSubmit={handleSubmit}
  onCancel={() => setEditing(null)}
  />

@@ -12,6 +12,8 @@ interface LocationPickerProps {
  value: Coordinate | null;
  /** When this changes to a coordinate, the map flies to it (e.g. geocoding). */
  focus?: Coordinate | null;
+ /** Initial center when no pin is set yet (the tenant's region). */
+ defaultCenter?: Coordinate;
  onChange: (coord: Coordinate) => void;
 }
 
@@ -19,6 +21,7 @@ interface LocationPickerProps {
 export default function LocationPicker({
  value,
  focus,
+ defaultCenter,
  onChange,
 }: LocationPickerProps) {
  const containerRef = useRef<HTMLDivElement>(null);
@@ -30,10 +33,15 @@ export default function LocationPicker({
  useEffect(() => {
  if (!containerRef.current || mapRef.current) return;
 
+ const initialCenter: [number, number] = value
+ ? [value.lng, value.lat]
+ : defaultCenter
+ ? [defaultCenter.lng, defaultCenter.lat]
+ : DEFAULT_CENTER;
  const map = new maplibregl.Map({
  container: containerRef.current,
  style: MAP_STYLE,
- center: value ? [value.lng, value.lat] : DEFAULT_CENTER,
+ center: initialCenter,
  zoom: value ? 14 : 11,
  });
  mapRef.current = map;

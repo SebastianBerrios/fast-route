@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import type { Coordinate } from "@/features/routing/domain/types";
 import type { LiveDriver } from "@/features/tracking/hooks/useTenantDrivers";
 
 const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
@@ -27,7 +28,14 @@ function driverEl(name: string): HTMLElement {
   return el;
 }
 
-export default function FleetMap({ drivers }: { drivers: LiveDriver[] }) {
+export default function FleetMap({
+  drivers,
+  defaultCenter,
+}: {
+  drivers: LiveDriver[];
+  /** Initial map center (the tenant's region); falls back to Tacna. */
+  defaultCenter?: Coordinate;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
@@ -37,7 +45,9 @@ export default function FleetMap({ drivers }: { drivers: LiveDriver[] }) {
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: MAP_STYLE,
-      center: DEFAULT_CENTER,
+      center: defaultCenter
+        ? [defaultCenter.lng, defaultCenter.lat]
+        : DEFAULT_CENTER,
       zoom: 12,
     });
     mapRef.current = map;

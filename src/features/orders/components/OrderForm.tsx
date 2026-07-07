@@ -3,6 +3,7 @@
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import type { Coordinate } from "@/features/routing/domain/types";
+import { DEFAULT_MAP_CENTER } from "@/features/routing/domain/constants";
 import type { Customer } from "@/features/customers/domain/types";
 import { formatPrice, type Product } from "@/features/products/domain/types";
 import type {
@@ -35,6 +36,8 @@ interface OrderFormProps {
   products: Product[];
   deliverers: Deliverer[];
   submitting?: boolean;
+  /** Map center used to bias geocoding and open the picker (tenant's region). */
+  defaultCenter?: Coordinate;
   onSubmit: (input: NewOrderInput, items: Item[]) => void;
   onClose: () => void;
 }
@@ -47,6 +50,7 @@ export default function OrderForm({
   products,
   deliverers,
   submitting,
+  defaultCenter = DEFAULT_MAP_CENTER,
   onSubmit,
   onClose,
 }: OrderFormProps) {
@@ -87,8 +91,12 @@ export default function OrderForm({
     if (!q) return;
     setGeoStatus("searching");
     setGeoResults([]);
+    // Bias results toward the current pin, or the tenant's region if none yet.
+    const bias = location ?? defaultCenter;
     try {
-      const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
+      const res = await fetch(
+        `/api/geocode?q=${encodeURIComponent(q)}&lng=${bias.lng}&lat=${bias.lat}`,
+      );
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Error");
       const results = (data.results ?? []) as GeoResult[];
@@ -245,7 +253,12 @@ export default function OrderForm({
             <span className="text-muted">
               Ubicación en el mapa {location ? "(tocá para ajustar)" : "*"}
             </span>
-            <LocationPicker value={location} focus={focus} onChange={setLocation} />
+            <LocationPicker
+              value={location}
+              focus={focus}
+              defaultCenter={defaultCenter}
+              onChange={setLocation}
+            />
           </div>
 
           <label className="flex flex-col gap-1 text-sm">
