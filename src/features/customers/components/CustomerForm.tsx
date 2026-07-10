@@ -172,6 +172,7 @@ export default function CustomerForm({
  onClick={() => {
  applyResult(r);
  setAddress(r.label);
+ setGeoResults([]);
  }}
  className="w-full rounded px-2 py-1 text-left text-xs transition-colors hover:bg-black/5 dark:hover:bg-white/10"
  >
@@ -201,7 +202,12 @@ export default function CustomerForm({
  value={location}
  focus={focus}
  defaultCenter={defaultCenter}
- onChange={setLocation}
+ onChange={(coord) => {
+ setLocation(coord);
+ // Picking a point on the map resolves the address: close the
+ // suggestions dropdown so it doesn't linger over the result.
+ setGeoResults([]);
+ }}
  />
  {location && (
  <p className="text-xs text-muted">
