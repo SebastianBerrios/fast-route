@@ -30,6 +30,11 @@ export interface UseOrders {
   setEnRoute: (orderId: string | null) => Promise<void>;
 }
 
+// Realtime topics must be unique per subscription: the singleton client
+// reuses channels by topic, and re-subscribing a live one throws (see
+// useProducts for the full story — StrictMode and double-mounting hit this).
+let channelSeq = 0;
+
 /**
  * Loads pending orders and keeps them in sync in real time via Supabase
  * Realtime. Any insert/update/delete (from any device) triggers a refetch,
@@ -63,7 +68,7 @@ export function useOrders(userId: string): UseOrders {
     fetchOrders();
 
     const channel = supabase
-      .channel("orders-realtime")
+      .channel(`orders-realtime-${++channelSeq}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "orders" },

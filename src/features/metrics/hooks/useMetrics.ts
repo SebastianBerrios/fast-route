@@ -76,6 +76,11 @@ function buildByDay(sales: Order[], period: MetricPeriod): DayBucket[] {
   return out;
 }
 
+// Realtime topics must be unique per subscription: the singleton client
+// reuses channels by topic, and re-subscribing a live one throws (see
+// useProducts for the full story).
+let channelSeq = 0;
+
 export function useMetrics(period: MetricPeriod): Metrics {
   const [supabase] = useState(() => createClient());
   const [sales, setSales] = useState<Order[]>([]);
@@ -113,7 +118,7 @@ export function useMetrics(period: MetricPeriod): Metrics {
   useEffect(() => {
     fetchData();
     const channel = supabase
-      .channel("metrics-realtime")
+      .channel(`metrics-realtime-${++channelSeq}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "orders" },

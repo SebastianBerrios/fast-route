@@ -13,6 +13,11 @@ export interface UseSales {
   count: number;
 }
 
+// Realtime topics must be unique per subscription: the singleton client
+// reuses channels by topic, and re-subscribing a live one throws (see
+// useProducts for the full story).
+let channelSeq = 0;
+
 /** Loads delivered orders (= sales) for a period, refreshed in real time. */
 export function useSales(period: SalePeriod): UseSales {
   const [supabase] = useState(() => createClient());
@@ -42,7 +47,7 @@ export function useSales(period: SalePeriod): UseSales {
   useEffect(() => {
     fetchSales();
     const channel = supabase
-      .channel("sales-realtime")
+      .channel(`sales-realtime-${++channelSeq}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "orders" },
