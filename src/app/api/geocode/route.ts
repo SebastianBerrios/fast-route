@@ -14,19 +14,18 @@ export async function GET(request: Request) {
   }
 
   // Proximity bias: the client sends its current map center. Fall back to the
-  // tenant's stored center. Country is a hard filter from the tenant, so an
-  // ambiguous street name can never resolve to another country.
+  // tenant's stored center so an ambiguous street name resolves in the
+  // business's region (the Photon geocoder has no country hard-filter).
   const lng = Number(searchParams.get("lng"));
   const lat = Number(searchParams.get("lat"));
   const clientFocus =
     Number.isFinite(lng) && Number.isFinite(lat) ? { lng, lat } : undefined;
 
-  const { center, country } = await getTenantLocation();
+  const { center } = await getTenantLocation();
 
   try {
     const results = await geocodeAddress(query, {
       focus: clientFocus ?? center ?? undefined,
-      country: country ?? undefined,
     });
     return NextResponse.json({ results });
   } catch (err) {

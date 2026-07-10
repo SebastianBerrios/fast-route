@@ -9,7 +9,7 @@ import type {
 import { decodePolyline } from "@/features/routing/lib/geo";
 
 const ORS_OPTIMIZATION_URL = "https://api.openrouteservice.org/optimization";
-const ORS_GEOCODE_URL = "https://api.openrouteservice.org/geocode/search";
+const PHOTON_GEOCODE_URL = "https://photon.komoot.io/api/";
 const ORS_AUTOCOMPLETE_URL =
   "https://api.openrouteservice.org/geocode/autocomplete";
 const ORS_DIRECTIONS_URL =
@@ -134,52 +134,53 @@ export interface GeocodeResult {
   label: string;
   lng: number;
   lat: number;
-  /** ISO 3166-1 alpha-3 country code (e.g. "PER"), when the provider returns it. */
+  /** ISO 3166-1 alpha-2 country code (e.g. "PE"), when the provider returns it. */
   country?: string;
 }
 
 /** Optional spatial constraints to keep results near the business's region. */
 export interface GeocodeOptions {
-  /** Soft proximity bias: results near this point rank higher (never excluded). */
+  /** Proximity bias: results near this point rank higher (never excluded). */
   focus?: { lng: number; lat: number };
-  /** Hard filter by ISO 3166-1 country code (alpha-2 or alpha-3), e.g. "PER". */
-  country?: string;
 }
 
-interface OrsGeocodeResponse {
+interface PhotonResponse {
   features?: Array<{
     geometry?: { coordinates?: [number, number] };
-    properties?: { label?: string; country_a?: string };
+    properties?: {
+      name?: string;
+      housenumber?: string;
+      street?: string;
+      city?: string;
+      district?: string;
+      state?: string;
+      country?: string;
+      countrycode?: string;
+    };
   }>;
 }
 
 /**
- * Forward-geocode a free-text address to candidate coordinates using
- * OpenRouteService (Pelias). Returns the top matches, best first.
+ * Forward-geocode a free-text address to candidate coordinates using Photon
+ * (photon.komoot.io), an OpenStreetMap-based geocoder. Returns the top matches,
+ * best first.
  *
- * Pass `opts.focus` (usually the current map center) to bias results toward the
- * business's region, and `opts.country` to hard-filter by country — together
- * they stop an ambiguous street name from resolving to another city or country.
+ * We use Photon here rather than OpenRouteService/Pelias because ORS's data
+ * build does not expose house numbers across much of Peru, while Photon (raw
+ * OSM) does. `opts.focus` (usually the current map center) biases results toward
+ * the business's region so an ambiguous street name resolves locally. Photon has
+ * no country hard-filter; the proximity bias plays that role.
  */
 export async function geocodeAddress(
   text: string,
   opts: GeocodeOptions = {},
 ): Promise<GeocodeResult[]> {
-  const apiKey = process.env.ORS_API_KEY;
-  if (!apiKey) {
-    throw new OpenRouteServiceError("Missing ORS_API_KEY.");
-  }
-
-  const url = new URL(ORS_GEOCODE_URL);
-  url.searchParams.set("api_key", apiKey);
-  url.searchParams.set("text", text);
-  url.searchParams.set("size", "5");
+  const url = new URL(PHOTON_GEOCODE_URL);
+  url.searchParams.set("q", text);
+  url.searchParams.set("limit", "5");
   if (opts.focus) {
-    url.searchParams.set("focus.point.lon", String(opts.focus.lng));
-    url.searchParams.set("focus.point.lat", String(opts.focus.lat));
-  }
-  if (opts.country) {
-    url.searchParams.set("boundary.country", opts.country);
+    url.searchParams.set("lon", String(opts.focus.lng));
+    url.searchParams.set("lat", String(opts.focus.lat));
   }
 
   const res = await fetch(url, { headers: { Accept: "application/json" } });
@@ -190,15 +191,29 @@ export async function geocodeAddress(
     );
   }
 
-  const data = (await res.json()) as OrsGeocodeResponse;
+  const data = (await res.json()) as PhotonResponse;
   return (data.features ?? [])
     .filter((f) => f.geometry?.coordinates)
-    .map((f) => ({
-      label: f.properties?.label ?? text,
-      lng: f.geometry!.coordinates![0],
-      lat: f.geometry!.coordinates![1],
-      country: f.properties?.country_a ?? undefined,
-    }));
+    .map((f) => {
+      const p = f.properties ?? {};
+      // Photon returns address parts separately (no ready-made label). Build a
+      // readable one: "Street 159, City, State, Country".
+      const street =
+        p.housenumber && p.street ? `${p.street} ${p.housenumber}` : p.street;
+      const primary = street || p.name || "";
+      const parts = [primary, p.city ?? p.district, p.state, p.country].filter(
+        Boolean,
+      ) as string[];
+      // Drop consecutive duplicates (e.g. city and state both "Tacna").
+      const label =
+        parts.filter((v, i) => v !== parts[i - 1]).join(", ") || text;
+      return {
+        label,
+        lng: f.geometry!.coordinates![0],
+        lat: f.geometry!.coordinates![1],
+        country: p.countrycode?.toUpperCase() ?? undefined,
+      };
+    });
 }
 
 export interface CitySuggestion {
