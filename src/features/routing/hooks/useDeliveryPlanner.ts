@@ -56,6 +56,8 @@ export interface DeliveryPlanner {
   lockedOrderId: string | null;
   liveShare: boolean;
   liveError: string | null;
+  /** True while a one-shot GPS position request is in flight. */
+  locating: boolean;
   otherDrivers: LiveDriver[];
   toggleLiveShare: () => void;
   /** Refresh the user's GPS position (one-shot). */
@@ -65,16 +67,16 @@ export interface DeliveryPlanner {
     input: NewOrderInput,
     items: Omit<NewOrderItemInput, "orderId">[],
   ) => Promise<boolean>;
-  removeOrder: (id: string) => void;
-  renameOrder: (id: string, customerName: string) => void;
-  markDelivered: (id: string) => void;
-  cancelOrder: (id: string) => void;
+  removeOrder: (id: string) => Promise<void>;
+  renameOrder: (id: string, customerName: string) => Promise<void>;
+  markDelivered: (id: string) => Promise<void>;
+  cancelOrder: (id: string) => Promise<void>;
   /** Assign an order to a driver, or free it up for anyone (null). */
-  assignOrder: (id: string, driverId: string | null) => void;
-  addItem: (input: NewOrderItemInput) => void;
-  removeItem: (itemId: string) => void;
-  goToOrder: (id: string) => void;
-  optimizeRoute: () => void;
+  assignOrder: (id: string, driverId: string | null) => Promise<void>;
+  addItem: (input: NewOrderItemInput) => Promise<void>;
+  removeItem: (itemId: string) => Promise<void>;
+  goToOrder: (id: string) => Promise<void>;
+  optimizeRoute: () => Promise<void>;
 }
 
 export function useDeliveryPlanner(userId: string): DeliveryPlanner {
@@ -127,10 +129,11 @@ export function useDeliveryPlanner(userId: string): DeliveryPlanner {
     sharing: liveShare,
     coord: liveCoord,
     error: liveError,
+    locating,
     toggle: toggleLiveShare,
     locateOnce,
   } = useLiveLocation(userId);
-  const otherDrivers = useTenantDrivers(userId);
+  const { drivers: otherDrivers } = useTenantDrivers(userId);
 
   // Ask for the user's position once on mount; the driver start follows GPS.
   useEffect(() => {
@@ -260,19 +263,20 @@ export function useDeliveryPlanner(userId: string): DeliveryPlanner {
     lockedOrderId,
     liveShare,
     liveError,
+    locating,
     otherDrivers,
     toggleLiveShare,
     locateMe: locateOnce,
     setReturnToStart,
     createOrderWithItems,
-    removeOrder: (id) => void removeOrder(id),
-    renameOrder: (id, name) => void renameOrder(id, name),
-    markDelivered: (id) => void markDelivered(id),
-    cancelOrder: (id) => void cancelOrder(id),
-    assignOrder: (id, driverId) => void assignOrder(id, driverId),
-    addItem: (input) => void addItem(input),
-    removeItem: (itemId) => void removeItem(itemId),
-    goToOrder: (id) => void setEnRoute(id),
-    optimizeRoute: () => void setEnRoute(null),
+    removeOrder,
+    renameOrder,
+    markDelivered,
+    cancelOrder,
+    assignOrder,
+    addItem,
+    removeItem,
+    goToOrder: (id) => setEnRoute(id),
+    optimizeRoute: () => setEnRoute(null),
   };
 }

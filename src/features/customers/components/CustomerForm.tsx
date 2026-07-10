@@ -8,15 +8,15 @@ import type {
  Customer,
  CustomerInput,
 } from "@/features/customers/domain/types";
+import { MapSkeleton } from "@/features/shell/ui/Skeleton";
 
 const LocationPicker = dynamic(
  () => import("@/features/customers/components/LocationPicker"),
  {
  ssr: false,
+ // Same MapSkeleton as the post-mount tile overlay — no flash between them.
  loading: () => (
- <div className="flex h-56 w-full items-center justify-center rounded-lg border border-line bg-neutral-100 text-sm text-muted">
- Cargando mapa…
- </div>
+ <MapSkeleton className="h-56 w-full rounded-lg border border-line" />
  ),
  },
 );

@@ -11,15 +11,15 @@ import type {
   NewOrderItemInput,
 } from "@/features/orders/domain/types";
 import type { Deliverer } from "@/features/orders/hooks/useDeliverers";
+import { MapSkeleton } from "@/features/shell/ui/Skeleton";
 
 const LocationPicker = dynamic(
   () => import("@/features/customers/components/LocationPicker"),
   {
     ssr: false,
+    // Same MapSkeleton as the post-mount tile overlay — no flash between them.
     loading: () => (
-      <div className="flex h-56 w-full items-center justify-center rounded-lg border border-line text-sm text-muted">
-        Cargando mapa…
-      </div>
+      <MapSkeleton className="h-56 w-full rounded-lg border border-line" />
     ),
   },
 );

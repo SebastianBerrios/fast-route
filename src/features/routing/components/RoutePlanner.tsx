@@ -13,6 +13,11 @@ import {
 import StopList from "@/features/routing/components/StopList";
 import OrderForm from "@/features/orders/components/OrderForm";
 import { useDeliverers } from "@/features/orders/hooks/useDeliverers";
+import {
+  MapSkeleton,
+  Skeleton,
+  SkeletonGroup,
+} from "@/features/shell/ui/Skeleton";
 import OnboardingHint from "@/features/shell/OnboardingHint";
 import { can, type Permission } from "@/features/auth/domain/permissions";
 import { formatPrice } from "@/features/products/domain/types";
@@ -26,11 +31,8 @@ const RouteMap = dynamic(
   () => import("@/features/routing/components/RouteMap"),
   {
     ssr: false,
-    loading: () => (
-      <div className="flex h-full w-full items-center justify-center bg-background text-muted">
-        Cargando mapa…
-      </div>
-    ),
+    // Same MapSkeleton as the post-mount tile overlay — no flash between them.
+    loading: () => <MapSkeleton />,
   },
 );
 
@@ -54,7 +56,7 @@ export default function RoutePlanner({
   const canManage = can(permissions, "orders.manage");
 
   const planner = useDeliveryPlanner(userId);
-  const deliverers = useDeliverers();
+  const { deliverers } = useDeliverers();
   const {
     driver,
     orderedOrders,
@@ -62,6 +64,7 @@ export default function RoutePlanner({
     route,
     optimizeStatus,
     optimizeError,
+    ordersLoading,
     ordersError,
     returnToStart,
   } = planner;
@@ -72,6 +75,8 @@ export default function RoutePlanner({
   const stopCoords = orderedStops.map((s) => s.coordinate);
   const nextStop = orderedStops[0]?.coordinate;
   const showNav = canDeliver && orderedStops.length > 0;
+  // Sharing is on but no coordinate has arrived yet (first GPS fix pending).
+  const awaitingFix = planner.liveShare && !driver;
 
   const handleCreate = async (
     input: NewOrderInput,
@@ -110,7 +115,11 @@ export default function RoutePlanner({
           <p className="text-sm text-muted">Optimización en tiempo real</p>
         </header>
 
-        <OnboardingHint permissions={permissions} />
+        <OnboardingHint
+          userId={userId}
+          permissions={permissions}
+          defaultCenter={defaultCenter}
+        />
 
         {canCreate && (
           <button
@@ -212,9 +221,12 @@ export default function RoutePlanner({
           <button
             type="button"
             onClick={planner.locateMe}
-            className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+            disabled={planner.locating}
+            className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 disabled:opacity-50 dark:hover:bg-white/10"
           >
-            📍 Actualizar mi ubicación
+            {planner.locating
+              ? "📍 Buscando ubicación…"
+              : "📍 Actualizar mi ubicación"}
           </button>
           <label className="flex items-center gap-2 text-sm">
             <input
@@ -250,7 +262,9 @@ export default function RoutePlanner({
             }`}
           >
             {planner.liveShare
-              ? "📡 Compartiendo ubicación — tocá para parar"
+              ? awaitingFix
+                ? "📡 Buscando señal GPS…"
+                : "📡 Compartiendo ubicación — tocá para parar"
               : "📡 Compartir mi ubicación en vivo"}
           </button>
         )}
@@ -258,8 +272,10 @@ export default function RoutePlanner({
         {/* Orders */}
         <section className="flex flex-col gap-2">
           <h2 className="flex items-center justify-between text-sm font-semibold text-muted">
-            <span>Pedidos ({orderedOrders.length})</span>
-            {orderedOrders.some((o) => o.total > 0) && (
+            <span>
+              {ordersLoading ? "Pedidos" : `Pedidos (${orderedOrders.length})`}
+            </span>
+            {!ordersLoading && orderedOrders.some((o) => o.total > 0) && (
               <span className="font-display tabular-nums text-foreground">
                 {formatPrice(
                   orderedOrders.reduce((sum, o) => sum + o.total, 0),
@@ -267,24 +283,46 @@ export default function RoutePlanner({
               </span>
             )}
           </h2>
-          <StopList
-            orders={orderedOrders}
-            products={planner.activeProducts}
-            deliverers={deliverers}
-            currentUserId={userId}
-            canCreate={canCreate}
-            canDeliver={canDeliver}
-            canManage={canManage}
-            lockedOrderId={planner.lockedOrderId}
-            onRemove={planner.removeOrder}
-            onRename={planner.renameOrder}
-            onDelivered={planner.markDelivered}
-            onAssign={planner.assignOrder}
-            onAddItem={planner.addItem}
-            onRemoveItem={planner.removeItem}
-            onGoTo={planner.goToOrder}
-            onCancel={planner.cancelOrder}
-          />
+          {ordersLoading ? (
+            <SkeletonGroup
+              label="Cargando pedidos…"
+              className="flex flex-col gap-2"
+            >
+              {Array.from({ length: 3 }, (_, i) => (
+                <div
+                  key={i}
+                  aria-hidden
+                  className="flex items-center gap-2 rounded-lg border border-line bg-surface p-2"
+                >
+                  <Skeleton className="h-7 w-7 shrink-0 rounded-full" />
+                  <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                    <Skeleton className="h-4 w-2/3" />
+                    <Skeleton className="h-3 w-1/3" />
+                  </div>
+                  <Skeleton className="h-5 w-14 rounded-md" />
+                </div>
+              ))}
+            </SkeletonGroup>
+          ) : (
+            <StopList
+              orders={orderedOrders}
+              products={planner.activeProducts}
+              deliverers={deliverers}
+              currentUserId={userId}
+              canCreate={canCreate}
+              canDeliver={canDeliver}
+              canManage={canManage}
+              lockedOrderId={planner.lockedOrderId}
+              onRemove={planner.removeOrder}
+              onRename={planner.renameOrder}
+              onDelivered={planner.markDelivered}
+              onAssign={planner.assignOrder}
+              onAddItem={planner.addItem}
+              onRemoveItem={planner.removeItem}
+              onGoTo={planner.goToOrder}
+              onCancel={planner.cancelOrder}
+            />
+          )}
         </section>
       </aside>
 

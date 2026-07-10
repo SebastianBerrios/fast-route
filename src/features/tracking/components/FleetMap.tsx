@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { MapSkeleton } from "@/features/shell/ui/Skeleton";
 import type { Coordinate } from "@/features/routing/domain/types";
 import type { LiveDriver } from "@/features/tracking/hooks/useTenantDrivers";
 
@@ -39,6 +40,7 @@ export default function FleetMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -52,6 +54,10 @@ export default function FleetMap({
     });
     mapRef.current = map;
     map.addControl(new maplibregl.NavigationControl(), "top-right");
+    map.on("load", () => setLoaded(true));
+    // If the style/tiles fail to load (e.g. offline), "load" never fires —
+    // clear the skeleton anyway instead of covering the map forever.
+    map.on("error", () => setLoaded(true));
     return () => {
       map.remove();
       mapRef.current = null;
@@ -84,5 +90,12 @@ export default function FleetMap({
     }
   }, [drivers]);
 
-  return <div ref={containerRef} className="h-full w-full" />;
+  return (
+    <div className="relative h-full w-full">
+      <div ref={containerRef} className="h-full w-full" />
+      {!loaded && (
+        <MapSkeleton className="pointer-events-none absolute inset-0" />
+      )}
+    </div>
+  );
 }

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { MapSkeleton } from "@/features/shell/ui/Skeleton";
 import type { Coordinate } from "@/features/routing/domain/types";
 
 const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
@@ -27,6 +28,7 @@ export default function LocationPicker({
  const containerRef = useRef<HTMLDivElement>(null);
  const mapRef = useRef<maplibregl.Map | null>(null);
  const markerRef = useRef<maplibregl.Marker | null>(null);
+ const [loaded, setLoaded] = useState(false);
  const changeRef = useRef(onChange);
  changeRef.current = onChange;
 
@@ -46,6 +48,10 @@ export default function LocationPicker({
  });
  mapRef.current = map;
  map.addControl(new maplibregl.NavigationControl(), "top-right");
+ map.on("load", () => setLoaded(true));
+ // If the style/tiles fail to load (e.g. offline), "load" never fires —
+ // clear the skeleton anyway instead of covering the map forever.
+ map.on("error", () => setLoaded(true));
 
  map.on("click", (e) => {
  changeRef.current({ lng: e.lngLat.lng, lat: e.lngLat.lat });
@@ -82,9 +88,11 @@ export default function LocationPicker({
  }, [focus]);
 
  return (
- <div
- ref={containerRef}
- className="h-56 w-full overflow-hidden rounded-lg border border-line "
- />
+ <div className="relative h-56 w-full overflow-hidden rounded-lg border border-line ">
+ <div ref={containerRef} className="h-full w-full" />
+ {!loaded && (
+ <MapSkeleton className="pointer-events-none absolute inset-0" />
+ )}
+ </div>
  );
 }

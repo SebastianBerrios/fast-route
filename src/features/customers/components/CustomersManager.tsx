@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useCustomers } from "@/features/customers/hooks/useCustomers";
 import CustomerForm from "@/features/customers/components/CustomerForm";
+import { usePendingActions } from "@/features/shell/ui/usePendingActions";
+import { ListRowsSkeleton } from "@/features/shell/ui/Skeleton";
 import {
  hasLocation,
  type Customer,
@@ -30,6 +32,7 @@ export default function CustomersManager({
  } = useCustomers(userId);
  const [editing, setEditing] = useState<Editing>(null);
  const [submitting, setSubmitting] = useState(false);
+ const { run, isPending } = usePendingActions();
 
  const handleSubmit = async (input: CustomerInput) => {
  setSubmitting(true);
@@ -74,7 +77,7 @@ export default function CustomersManager({
 
  <section className="rounded-xl border border-line ">
  {loading ? (
- <p className="p-4 text-sm text-muted">Cargando clientes…</p>
+ <ListRowsSkeleton rows={4} label="Cargando clientes…" />
  ) : customers.length === 0 ? (
  <p className="p-4 text-sm text-muted">
  Todavía no hay clientes. Creá el primero.
@@ -114,12 +117,15 @@ export default function CustomersManager({
  type="button"
  onClick={() => {
  if (confirm(`¿Eliminar a ${customer.name}?`)) {
- void removeCustomer(customer.id);
+ void run(`remove:${customer.id}`, () =>
+ removeCustomer(customer.id),
+ );
  }
  }}
- className="shrink-0 rounded-md px-2 py-1 text-muted transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
+ disabled={isPending(`remove:${customer.id}`)}
+ className="shrink-0 rounded-md px-2 py-1 text-muted transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-950"
  >
- ✕
+ {isPending(`remove:${customer.id}`) ? "…" : "✕"}
  </button>
  </li>
  ))}

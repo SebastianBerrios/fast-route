@@ -9,6 +9,7 @@ import {
  type RankRow,
 } from "@/features/metrics/domain/types";
 import { formatPrice } from "@/features/products/domain/types";
+import { Skeleton, SkeletonGroup } from "@/features/shell/ui/Skeleton";
 
 const PERIODS: MetricPeriod[] = ["7d", "30d", "all"];
 
@@ -135,7 +136,43 @@ export default function MetricsView() {
  )}
 
  {m.loading ? (
- <p className="text-sm text-muted">Calculando métricas…</p>
+ <SkeletonGroup
+ label="Calculando métricas…"
+ className="flex flex-col gap-4"
+ >
+ <div className="flex flex-col gap-3 sm:flex-row" aria-hidden>
+ {Array.from({ length: 3 }, (_, i) => (
+ <div
+ key={i}
+ className="flex-1 rounded-xl border border-line bg-surface p-4"
+ >
+ <Skeleton className="h-3 w-20" />
+ <Skeleton className="mt-2 h-8 w-28" />
+ </div>
+ ))}
+ </div>
+ <div
+ className="rounded-xl border border-line bg-surface p-4"
+ aria-hidden
+ >
+ <Skeleton className="mb-3 h-4 w-32" />
+ <Skeleton className="h-40 w-full" />
+ </div>
+ <div
+ className="grid grid-cols-1 gap-4 md:grid-cols-2"
+ aria-hidden
+ >
+ {Array.from({ length: 2 }, (_, i) => (
+ <div
+ key={i}
+ className="rounded-xl border border-line bg-surface p-4"
+ >
+ <Skeleton className="mb-3 h-4 w-40" />
+ <Skeleton className="h-32 w-full" />
+ </div>
+ ))}
+ </div>
+ </SkeletonGroup>
  ) : (
  <>
  <div className="flex flex-col gap-3 sm:flex-row">

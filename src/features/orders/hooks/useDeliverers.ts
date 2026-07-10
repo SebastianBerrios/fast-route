@@ -8,13 +8,20 @@ export interface Deliverer {
   name: string;
 }
 
+export interface UseDeliverers {
+  deliverers: Deliverer[];
+  /** True until the first fetch resolves. */
+  loading: boolean;
+}
+
 /**
  * Tenant members who can deliver (permission `orders.deliver`), for assigning
  * orders. RLS scopes the read to the current tenant.
  */
-export function useDeliverers(): Deliverer[] {
+export function useDeliverers(): UseDeliverers {
   const [supabase] = useState(() => createClient());
   const [deliverers, setDeliverers] = useState<Deliverer[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -31,6 +38,7 @@ export function useDeliverers(): Deliverer[] {
             name: p.full_name || p.email || "Repartidor",
           })),
         );
+        setLoading(false);
       }
     })();
     return () => {
@@ -38,5 +46,5 @@ export function useDeliverers(): Deliverer[] {
     };
   }, [supabase]);
 
-  return deliverers;
+  return { deliverers, loading };
 }

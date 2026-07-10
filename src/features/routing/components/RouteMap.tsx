@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { MapSkeleton } from "@/features/shell/ui/Skeleton";
 import type { Coordinate, OptimizedRoute, Stop } from "@/features/routing/domain/types";
 import type { LiveDriver } from "@/features/tracking/hooks/useTenantDrivers";
 
@@ -93,6 +94,7 @@ export default function RouteMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const loadedRef = useRef(false);
+  const [loaded, setLoaded] = useState(false);
   const markersRef = useRef<maplibregl.Marker[]>([]);
   // Keep the latest click handler without re-initializing the map.
   const clickHandlerRef = useRef(onMapClick);
@@ -123,6 +125,7 @@ export default function RouteMap({
 
     map.on("load", () => {
       loadedRef.current = true;
+      setLoaded(true);
       map.addSource(ROUTE_SOURCE, {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
@@ -135,6 +138,10 @@ export default function RouteMap({
         paint: { "line-color": "#2563eb", "line-width": 5, "line-opacity": 0.8 },
       });
     });
+
+    // If the style/tiles fail to load (e.g. offline), "load" never fires —
+    // clear the skeleton anyway instead of covering the map forever.
+    map.on("error", () => setLoaded(true));
 
     map.on("click", (e) => {
       clickHandlerRef.current?.({ lng: e.lngLat.lng, lat: e.lngLat.lat });
@@ -232,5 +239,12 @@ export default function RouteMap({
     map.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 500 });
   }, [driver, orderedStops]);
 
-  return <div ref={containerRef} className="h-full w-full" />;
+  return (
+    <div className="relative h-full w-full">
+      <div ref={containerRef} className="h-full w-full" />
+      {!loaded && (
+        <MapSkeleton className="pointer-events-none absolute inset-0" />
+      )}
+    </div>
+  );
 }

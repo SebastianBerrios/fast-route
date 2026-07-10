@@ -8,6 +8,11 @@ import {
  type SalePeriod,
 } from "@/features/sales/domain/types";
 import { formatPrice } from "@/features/products/domain/types";
+import {
+ ListRowsSkeleton,
+ Skeleton,
+ SkeletonGroup,
+} from "@/features/shell/ui/Skeleton";
 
 const PERIODS: SalePeriod[] = ["today", "7d", "all"];
 
@@ -36,6 +41,21 @@ export default function SalesView() {
  </div>
 
  {/* Summary */}
+ {loading ? (
+ <SkeletonGroup
+ label="Cargando resumen de ventas…"
+ className="flex gap-6 rounded-xl border border-line bg-surface p-4"
+ >
+ <div aria-hidden>
+ <p className="text-xs uppercase text-muted">Ventas</p>
+ <Skeleton className="mt-1 h-8 w-12" />
+ </div>
+ <div aria-hidden>
+ <p className="text-xs uppercase text-muted">Ingresos</p>
+ <Skeleton className="mt-1 h-8 w-24" />
+ </div>
+ </SkeletonGroup>
+ ) : (
  <div className="flex gap-6 rounded-xl border border-line bg-surface p-4">
  <div>
  <p className="text-xs uppercase text-muted">Ventas</p>
@@ -46,6 +66,7 @@ export default function SalesView() {
  <p className="text-2xl font-bold tabular-nums">{formatPrice(total)}</p>
  </div>
  </div>
+ )}
 
  {error && (
  <p className="text-sm text-red-600" role="alert">
@@ -56,7 +77,7 @@ export default function SalesView() {
  {/* List */}
  <section className="rounded-xl border border-line ">
  {loading ? (
- <p className="p-4 text-sm text-muted">Cargando ventas…</p>
+ <ListRowsSkeleton rows={4} label="Cargando ventas…" />
  ) : sales.length === 0 ? (
  <p className="p-4 text-sm text-muted">
  No hay ventas en este período.

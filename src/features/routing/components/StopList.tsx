@@ -7,6 +7,7 @@ import type {
 } from "@/features/orders/domain/types";
 import { formatPrice, type Product } from "@/features/products/domain/types";
 import OrderItemsEditor from "@/features/orders/components/OrderItemsEditor";
+import { usePendingActions } from "@/features/shell/ui/usePendingActions";
 import type { Deliverer } from "@/features/orders/hooks/useDeliverers";
 
 interface StopListProps {
@@ -18,14 +19,14 @@ interface StopListProps {
  canDeliver: boolean;
  canManage: boolean;
  lockedOrderId: string | null;
- onRemove: (id: string) => void;
- onRename: (id: string, customerName: string) => void;
- onDelivered: (id: string) => void;
- onAssign: (id: string, driverId: string | null) => void;
- onAddItem: (input: NewOrderItemInput) => void;
- onRemoveItem: (itemId: string) => void;
- onGoTo: (id: string) => void;
- onCancel: (id: string) => void;
+ onRemove: (id: string) => Promise<void>;
+ onRename: (id: string, customerName: string) => Promise<void>;
+ onDelivered: (id: string) => Promise<void>;
+ onAssign: (id: string, driverId: string | null) => Promise<void>;
+ onAddItem: (input: NewOrderItemInput) => Promise<void>;
+ onRemoveItem: (itemId: string) => Promise<void>;
+ onGoTo: (id: string) => Promise<void>;
+ onCancel: (id: string) => Promise<void>;
 }
 
 export default function StopList({
@@ -47,6 +48,19 @@ export default function StopList({
  onCancel,
 }: StopListProps) {
  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+ // Optimistic value for the assign <select> while the action is pending,
+ // so the picked driver doesn't snap back to the old value.
+ const [assignDraft, setAssignDraft] = useState<ReadonlyMap<string, string>>(
+ new Map(),
+ );
+ const { run, isPending, hasPending } = usePendingActions();
+
+ const clearAssignDraft = (orderId: string) =>
+ setAssignDraft((prev) => {
+ const next = new Map(prev);
+ next.delete(orderId);
+ return next;
+ });
 
  const toggle = (id: string) =>
  setExpanded((prev) => {
@@ -77,9 +91,13 @@ export default function StopList({
  const assignedName =
  deliverers.find((d) => d.id === order.assignedTo)?.name ??
  "otro repartidor";
+ // One in-flight action disables the whole row (conflicting buttons),
+ // while other rows stay live.
+ const rowBusy = hasPending(`${order.id}:`);
  return (
  <li
  key={order.id}
+ aria-busy={rowBusy}
  className={`rounded-lg border bg-surface p-2 ${
  isLocked
  ? "border-blue-500 ring-1 ring-blue-500"
@@ -100,11 +118,19 @@ export default function StopList({
  defaultValue={order.customerName ?? ""}
  placeholder={`Cliente / pedido ${index + 1}`}
  onBlur={(e) => {
+ // A row action already in flight wins — don't race it
+ // with a rename fired by the blur.
+ if (hasPending(`${order.id}:`)) return;
  const value = e.target.value.trim();
  if (value !== (order.customerName ?? "")) {
- onRename(order.id, value);
+ // No visible swap for an inline input — just a re-entry
+ // guard plus aria-busy on the row.
+ void run(`${order.id}:rename`, () =>
+ onRename(order.id, value),
+ );
  }
  }}
+ disabled={rowBusy}
  aria-label={`Nombre del cliente para el pedido ${index + 1}`}
  />
  ) : (
@@ -135,33 +161,40 @@ export default function StopList({
  ) : (
  <button
  type="button"
- onClick={() => onGoTo(order.id)}
- className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-brand transition-colors hover:bg-blue-50 dark:hover:bg-blue-950"
+ onClick={() => run(`${order.id}:goto`, () => onGoTo(order.id))}
+ disabled={rowBusy}
+ className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-brand transition-colors hover:bg-blue-50 disabled:opacity-50 dark:hover:bg-blue-950"
  title="Marcar como próxima parada (no se reordena)"
  >
- Voy a este
+ {isPending(`${order.id}:goto`) ? "Marcando…" : "Voy a este"}
  </button>
  ))}
  {canDeliver && (
  <button
  type="button"
- onClick={() => onDelivered(order.id)}
- className="shrink-0 rounded-md px-2 py-1 text-sm text-muted transition-colors hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-950"
+ onClick={() =>
+ run(`${order.id}:deliver`, () => onDelivered(order.id))
+ }
+ disabled={rowBusy}
+ className="shrink-0 rounded-md px-2 py-1 text-sm text-muted transition-colors hover:bg-green-50 hover:text-green-600 disabled:opacity-50 dark:hover:bg-green-950"
  aria-label={`Marcar pedido ${index + 1} como entregado`}
  title="Marcar como entregado"
  >
- ✓
+ {isPending(`${order.id}:deliver`) ? "…" : "✓"}
  </button>
  )}
  {canDelete && (
  <button
  type="button"
- onClick={() => onRemove(order.id)}
- className="shrink-0 rounded-md px-2 py-1 text-sm text-muted transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
+ onClick={() =>
+ run(`${order.id}:remove`, () => onRemove(order.id))
+ }
+ disabled={rowBusy}
+ className="shrink-0 rounded-md px-2 py-1 text-sm text-muted transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-950"
  aria-label={`Eliminar pedido ${index + 1}`}
  title="Eliminar"
  >
- ✕
+ {isPending(`${order.id}:remove`) ? "…" : "✕"}
  </button>
  )}
  </div>
@@ -185,9 +218,17 @@ export default function StopList({
  )}
  {canEdit ? (
  <select
- value={order.assignedTo ?? ""}
- onChange={(e) => onAssign(order.id, e.target.value || null)}
- className="ml-auto rounded-md border border-line bg-background px-1.5 py-0.5 text-xs outline-none focus:border-brand"
+ value={assignDraft.get(order.id) ?? order.assignedTo ?? ""}
+ onChange={(e) => {
+ const value = e.target.value;
+ setAssignDraft((prev) => new Map(prev).set(order.id, value));
+ const settle = () => clearAssignDraft(order.id);
+ run(`${order.id}:assign`, () =>
+ onAssign(order.id, value || null),
+ ).then(settle, settle);
+ }}
+ disabled={rowBusy}
+ className="ml-auto rounded-md border border-line bg-background px-1.5 py-0.5 text-xs outline-none focus:border-brand disabled:opacity-50"
  aria-label="Asignar repartidor"
  >
  <option value="">Libre</option>
@@ -200,18 +241,26 @@ export default function StopList({
  ) : canDeliver && isFree ? (
  <button
  type="button"
- onClick={() => onAssign(order.id, currentUserId)}
- className="ml-auto rounded-md px-2 py-0.5 font-medium text-brand transition-colors hover:bg-blue-50 dark:hover:bg-blue-950"
+ onClick={() =>
+ run(`${order.id}:assign`, () =>
+ onAssign(order.id, currentUserId),
+ )
+ }
+ disabled={rowBusy}
+ className="ml-auto rounded-md px-2 py-0.5 font-medium text-brand transition-colors hover:bg-blue-50 disabled:opacity-50 dark:hover:bg-blue-950"
  >
- Tomar
+ {isPending(`${order.id}:assign`) ? "Tomando…" : "Tomar"}
  </button>
  ) : canDeliver && isMine ? (
  <button
  type="button"
- onClick={() => onAssign(order.id, null)}
- className="ml-auto rounded-md px-2 py-0.5 text-muted transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+ onClick={() =>
+ run(`${order.id}:assign`, () => onAssign(order.id, null))
+ }
+ disabled={rowBusy}
+ className="ml-auto rounded-md px-2 py-0.5 text-muted transition-colors hover:bg-black/5 disabled:opacity-50 dark:hover:bg-white/10"
  >
- Liberar
+ {isPending(`${order.id}:assign`) ? "Liberando…" : "Liberar"}
  </button>
  ) : null}
  </div>
@@ -222,16 +271,22 @@ export default function StopList({
  order={order}
  products={products}
  canEdit={canEdit}
+ disabled={rowBusy}
  onAddItem={onAddItem}
  onRemoveItem={onRemoveItem}
  />
  {canDelete && (
  <button
  type="button"
- onClick={() => onCancel(order.id)}
- className="self-start rounded-md px-2 py-1 text-xs text-amber-600 transition-colors hover:bg-amber-500/10"
+ onClick={() =>
+ run(`${order.id}:cancel`, () => onCancel(order.id))
+ }
+ disabled={rowBusy}
+ className="self-start rounded-md px-2 py-1 text-xs text-amber-600 transition-colors hover:bg-amber-500/10 disabled:opacity-50"
  >
- Cancelar pedido
+ {isPending(`${order.id}:cancel`)
+ ? "Cancelando…"
+ : "Cancelar pedido"}
  </button>
  )}
  </div>

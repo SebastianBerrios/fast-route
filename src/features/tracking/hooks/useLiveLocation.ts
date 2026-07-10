@@ -10,6 +10,8 @@ export interface LiveLocation {
   sharing: boolean;
   coord: Coordinate | null;
   error: string | null;
+  /** True while a one-shot getCurrentPosition request is in flight. */
+  locating: boolean;
   toggle: () => void;
   /** One-shot: read the current GPS position without broadcasting. */
   locateOnce: () => void;
@@ -25,6 +27,7 @@ export function useLiveLocation(userId: string): LiveLocation {
   const [sharing, setSharing] = useState(false);
   const [coord, setCoord] = useState<Coordinate | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [locating, setLocating] = useState(false);
   const watchId = useRef<number | null>(null);
   const lastUpsert = useRef(0);
 
@@ -87,10 +90,12 @@ export function useLiveLocation(userId: string): LiveLocation {
       setError("Este dispositivo no permite geolocalización.");
       return;
     }
+    setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setCoord({ lng: pos.coords.longitude, lat: pos.coords.latitude });
         setError(null);
+        setLocating(false);
       },
       (err) => {
         setError(
@@ -98,6 +103,7 @@ export function useLiveLocation(userId: string): LiveLocation {
             ? "Permiso de ubicación denegado."
             : "No se pudo obtener la ubicación.",
         );
+        setLocating(false);
       },
       { enableHighAccuracy: true, timeout: 15000 },
     );
@@ -106,5 +112,5 @@ export function useLiveLocation(userId: string): LiveLocation {
   // Stop watching on unmount (keep last shared position).
   useEffect(() => clearWatch, [clearWatch]);
 
-  return { sharing, coord, error, toggle, locateOnce };
+  return { sharing, coord, error, locating, toggle, locateOnce };
 }

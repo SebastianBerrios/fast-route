@@ -2,17 +2,15 @@
 
 import dynamic from "next/dynamic";
 import { useTenantDrivers } from "@/features/tracking/hooks/useTenantDrivers";
+import { ListRowsSkeleton, MapSkeleton } from "@/features/shell/ui/Skeleton";
 import type { Coordinate } from "@/features/routing/domain/types";
 
 const FleetMap = dynamic(
   () => import("@/features/tracking/components/FleetMap"),
   {
     ssr: false,
-    loading: () => (
-      <div className="flex h-full w-full items-center justify-center bg-background text-muted">
-        Cargando mapa…
-      </div>
-    ),
+    // Same MapSkeleton as the post-mount tile overlay — no flash between them.
+    loading: () => <MapSkeleton />,
   },
 );
 
@@ -34,7 +32,7 @@ export default function FleetView({
   /** The tenant's stored region, used to center the map. */
   defaultCenter?: Coordinate;
 }) {
-  const drivers = useTenantDrivers("");
+  const { drivers, loading } = useTenantDrivers("");
 
   return (
     <div className="flex h-full flex-col gap-3 md:flex-row">
@@ -43,9 +41,13 @@ export default function FleetView({
       </div>
       <aside className="w-full shrink-0 md:w-72">
         <h2 className="mb-2 text-sm font-semibold text-muted">
-          Repartidores en línea ({drivers.length})
+          Repartidores en línea{loading ? "" : ` (${drivers.length})`}
         </h2>
-        {drivers.length === 0 ? (
+        {loading ? (
+          <div className="rounded-lg border border-line">
+            <ListRowsSkeleton rows={3} label="Cargando repartidores…" />
+          </div>
+        ) : drivers.length === 0 ? (
           <p className="rounded-lg border border-line p-3 text-sm text-muted">
             Ningún repartidor está compartiendo su ubicación ahora mismo.
           </p>
