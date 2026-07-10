@@ -1,8 +1,12 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import { createInvite, revokeInvite } from "@/features/admin/actions";
-import { ROLE_LABELS, roleLabel, type UserRole } from "@/features/auth/domain/roles";
+import { useState, useTransition } from "react";
+import { revokeInvite } from "@/features/admin/actions";
+import { roleLabel, type UserRole } from "@/features/auth/domain/roles";
+import InviteGenerator, {
+  inviteUrl,
+  useOrigin,
+} from "@/features/admin/components/InviteGenerator";
 
 export interface AdminInvite {
   id: string;
@@ -11,36 +15,19 @@ export interface AdminInvite {
   expiresAt: string;
 }
 
-const ROLE_OPTIONS: UserRole[] = ["driver", "seller", "admin"];
-
-function inviteUrl(origin: string, code: string) {
-  return `${origin}/login?invite=${code}`;
-}
-
 export default function InvitesManager({
   invites,
 }: {
   invites: AdminInvite[];
 }) {
-  const [origin, setOrigin] = useState("");
-  const [role, setRole] = useState<UserRole>("driver");
-  const [lastCode, setLastCode] = useState<string | null>(null);
+  const origin = useOrigin();
   const [copied, setCopied] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-
-  useEffect(() => setOrigin(window.location.origin), []);
-
-  const generate = () => {
-    startTransition(async () => {
-      const res = await createInvite(role);
-      if (res.error) setError(res.error);
-      else {
-        setError(null);
-        setLastCode(res.code);
-      }
-    });
-  };
+  const [, startTransition] = useTransition();
+  // Per-id pending set: concurrent revokes must not clear each other's state.
+  const [revokingIds, setRevokingIds] = useState<ReadonlySet<string>>(
+    new Set(),
+  );
+  const [revokeError, setRevokeError] = useState<string | null>(null);
 
   const copy = async (code: string) => {
     try {
@@ -52,6 +39,25 @@ export default function InvitesManager({
     }
   };
 
+  const handleRevoke = (id: string) => {
+    setRevokingIds((prev) => new Set(prev).add(id));
+    setRevokeError(null);
+    startTransition(async () => {
+      try {
+        const res = await revokeInvite(id);
+        setRevokeError(res.error);
+      } catch {
+        setRevokeError("No se pudo revocar la invitación. Probá de nuevo.");
+      } finally {
+        setRevokingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+    });
+  };
+
   return (
     <section className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4">
       <div>
@@ -61,46 +67,12 @@ export default function InvitesManager({
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <select
-          value={role}
-          onChange={(e) => setRole(e.target.value as UserRole)}
-          className="rounded-lg border border-line bg-background px-3 py-2 text-sm outline-none focus:border-brand"
-        >
-          {ROLE_OPTIONS.map((r) => (
-            <option key={r} value={r}>
-              {ROLE_LABELS[r]}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          onClick={generate}
-          disabled={isPending}
-          className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand/90 disabled:opacity-50"
-        >
-          {isPending ? "Generando…" : "Generar invitación"}
-        </button>
-      </div>
+      <InviteGenerator />
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
-
-      {lastCode && (
-        <div className="flex items-center gap-2 rounded-lg border border-brand/40 bg-brand/5 p-2">
-          <input
-            readOnly
-            value={inviteUrl(origin, lastCode)}
-            className="min-w-0 flex-1 bg-transparent px-2 text-xs outline-none"
-            onFocus={(e) => e.currentTarget.select()}
-          />
-          <button
-            type="button"
-            onClick={() => copy(lastCode)}
-            className="shrink-0 rounded-md bg-brand px-2 py-1 text-xs font-medium text-white"
-          >
-            {copied === lastCode ? "¡Copiado!" : "Copiar link"}
-          </button>
-        </div>
+      {revokeError && (
+        <p className="text-sm text-red-600" role="alert">
+          {revokeError}
+        </p>
       )}
 
       {invites.length > 0 && (
@@ -125,10 +97,11 @@ export default function InvitesManager({
               </button>
               <button
                 type="button"
-                onClick={() => void revokeInvite(inv.id)}
-                className="shrink-0 rounded-md px-2 py-1 text-xs text-red-600 hover:bg-red-500/10"
+                onClick={() => handleRevoke(inv.id)}
+                disabled={revokingIds.has(inv.id)}
+                className="shrink-0 rounded-md px-2 py-1 text-xs text-red-600 hover:bg-red-500/10 disabled:opacity-50"
               >
-                Revocar
+                {revokingIds.has(inv.id) ? "Revocando…" : "Revocar"}
               </button>
             </li>
           ))}
