@@ -202,6 +202,12 @@ export async function geocodeAddress(
 }
 
 export interface CitySuggestion {
+  /**
+   * Stable unique id (Pelias `gid`). Pelias can return distinct records with
+   * identical label + coordinates, so the label is not a safe identity —
+   * this id is what React keys and dedupe must use.
+   */
+  id: string;
   /** Full display label, e.g. "Tacna, Tacna, Peru". */
   label: string;
   /** City name alone, e.g. "Tacna". */
@@ -216,6 +222,7 @@ interface OrsAutocompleteResponse {
   features?: Array<{
     geometry?: { coordinates?: [number, number] };
     properties?: {
+      gid?: string;
       name?: string;
       label?: string;
       country_a?: string;
@@ -254,15 +261,30 @@ export async function autocompleteCities(
   }
 
   const data = (await res.json()) as OrsAutocompleteResponse;
-  return (data.features ?? [])
+  const suggestions = (data.features ?? [])
     .filter((f) => f.geometry?.coordinates && f.properties?.name)
-    .map((f) => ({
-      label: f.properties?.label ?? f.properties!.name!,
-      city: f.properties!.name!,
-      country: f.properties?.country_a ?? undefined,
-      lng: f.geometry!.coordinates![0],
-      lat: f.geometry!.coordinates![1],
-    }));
+    .map((f, index) => {
+      const label = f.properties?.label ?? f.properties!.name!;
+      const lng = f.geometry!.coordinates![0];
+      const lat = f.geometry!.coordinates![1];
+      return {
+        // Index fallback keeps ids unique even if Pelias omits the gid.
+        id: f.properties?.gid ?? `${label}-${lng}-${lat}-${index}`,
+        label,
+        city: f.properties!.name!,
+        country: f.properties?.country_a ?? undefined,
+        lng,
+        lat,
+      };
+    });
+
+  // Pelias occasionally returns the same record twice; keep the first.
+  const seen = new Set<string>();
+  return suggestions.filter((s) => {
+    if (seen.has(s.id)) return false;
+    seen.add(s.id);
+    return true;
+  });
 }
 
 interface OrsDirectionsResponse {

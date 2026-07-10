@@ -9,6 +9,7 @@ import {
 } from "react";
 import { authenticate, type AuthState } from "@/features/auth/actions";
 import type { CitySuggestion } from "@/features/routing/services/openrouteservice";
+import { Skeleton, SkeletonGroup } from "@/features/shell/ui/Skeleton";
 
 const initialState: AuthState = {};
 
@@ -37,6 +38,7 @@ function CityCombobox({
 }) {
   const baseId = useId();
   const inputId = `${baseId}-input`;
+  const panelId = `${baseId}-panel`;
   const listboxId = `${baseId}-listbox`;
   const helperId = `${baseId}-helper`;
   const errorId = `${baseId}-error`;
@@ -44,6 +46,7 @@ function CityCombobox({
   const [suggestions, setSuggestions] = useState<CitySuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [searching, setSearching] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   // Exposed so blur can cancel the pending debounce and in-flight request.
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -60,6 +63,10 @@ function CityCombobox({
     const controller = new AbortController();
     abortRef.current = controller;
     const timer = setTimeout(async () => {
+      // While the lookup is in flight the dropdown shows a loading panel and
+      // there is no active option to navigate or select.
+      setSearching(true);
+      setActiveIndex(-1);
       try {
         const res = await fetch(`/api/cities?q=${encodeURIComponent(text)}`, {
           signal: controller.signal,
@@ -71,10 +78,14 @@ function CityCombobox({
         // never open the listbox over the fields below.
         if (document.activeElement !== inputRef.current) return;
         setSuggestions(results);
-        setOpen(results.length > 0);
+        // Open even with zero results: an explicit "not found" row beats
+        // the dropdown silently closing after the loading panel.
+        setOpen(true);
         setActiveIndex(-1);
       } catch {
         // Aborted or offline: keep whatever is currently shown.
+      } finally {
+        setSearching(false);
       }
     }, AUTOCOMPLETE_DEBOUNCE_MS);
     debounceRef.current = timer;
@@ -94,10 +105,26 @@ function CityCombobox({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Escape") {
+      // Escape closes the loading panel and the listbox alike, cancelling
+      // any pending lookup the same way blur does.
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      abortRef.current?.abort();
+      setSearching(false);
+      setOpen(false);
+      setActiveIndex(-1);
+      return;
+    }
+    if (searching) {
+      // Skeleton rows are not options: nothing to navigate or select.
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") e.preventDefault();
+      return;
+    }
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      if (!open && suggestions.length > 0) setOpen(true);
-      setActiveIndex((i) => (i + 1) % Math.max(suggestions.length, 1));
+      if (suggestions.length === 0) return;
+      if (!open) setOpen(true);
+      setActiveIndex((i) => (i + 1) % suggestions.length);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActiveIndex((i) =>
@@ -110,11 +137,16 @@ function CityCombobox({
         e.preventDefault();
         pick(suggestions[activeIndex]);
       }
-    } else if (e.key === "Escape") {
-      setOpen(false);
-      setActiveIndex(-1);
     }
   };
+
+  // The dropdown has three mutually exclusive contents sharing one container:
+  // skeleton rows while the lookup is in flight, the real listbox when there
+  // are results, and a "not found" row when the search resolved empty.
+  const showLoading = searching;
+  const showListbox = !searching && open && suggestions.length > 0;
+  const showEmpty = !searching && open && suggestions.length === 0;
+  const panelOpen = showLoading || showListbox || showEmpty;
 
   // Per the APG combobox pattern the label, helper text, and listbox are
   // siblings of the input — nesting them inside a <label> would fold the
@@ -148,50 +180,75 @@ function CityCombobox({
           // listbox would pop open over the next fields after focus moved on.
           if (debounceRef.current) clearTimeout(debounceRef.current);
           abortRef.current?.abort();
+          setSearching(false);
           setOpen(false);
         }}
         placeholder="Ej: Tacna"
         autoComplete="off"
         role="combobox"
-        aria-expanded={open}
-        aria-controls={open ? listboxId : undefined}
+        aria-expanded={panelOpen}
+        // Point at the listbox when it is rendered; at the panel otherwise
+        // (loading skeletons / empty row), so the reference never dangles.
+        aria-controls={
+          showListbox ? listboxId : panelOpen ? panelId : undefined
+        }
         aria-autocomplete="list"
         aria-activedescendant={
-          open && activeIndex >= 0
-            ? `${listboxId}-option-${activeIndex}`
+          showListbox && activeIndex >= 0 && suggestions[activeIndex]
+            ? `${listboxId}-option-${suggestions[activeIndex].id}`
             : undefined
         }
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${helperId} ${errorId}` : helperId}
         className={inputClass}
       />
-      {open && (
-        <ul
-          id={listboxId}
-          role="listbox"
-          aria-label="Ciudades sugeridas"
+      {panelOpen && (
+        <div
+          id={panelId}
           className="absolute top-full z-10 mt-1 w-full overflow-hidden rounded-lg border border-line bg-surface shadow-md"
         >
-          {suggestions.map((s, i) => (
-            <li
-              key={`${s.label}-${s.lng}-${s.lat}`}
-              id={`${listboxId}-option-${i}`}
-              role="option"
-              aria-selected={i === activeIndex}
-              // onMouseDown (not onClick) so the pick wins over the input blur.
-              onMouseDown={(e) => {
-                e.preventDefault();
-                pick(s);
-              }}
-              onMouseEnter={() => setActiveIndex(i)}
-              className={`cursor-pointer px-3 py-2 text-sm ${
-                i === activeIndex ? "bg-brand/10 text-brand" : ""
-              }`}
-            >
-              {s.label}
-            </li>
-          ))}
-        </ul>
+          {showLoading && (
+            <SkeletonGroup label="Buscando ciudades…">
+              {Array.from({ length: 3 }, (_, i) => (
+                // Mimics an option row: label line + shorter country line.
+                <div key={i} aria-hidden className="flex flex-col gap-1.5 px-3 py-2">
+                  <Skeleton className="h-4 w-3/5" />
+                  <Skeleton className="h-3 w-2/5" />
+                </div>
+              ))}
+            </SkeletonGroup>
+          )}
+          {showEmpty && (
+            // role="status" so the result is announced to screen readers,
+            // otherwise a silent empty listbox reads as "nothing happened".
+            <p role="status" className="px-3 py-2 text-sm text-muted">
+              No encontramos esa ciudad
+            </p>
+          )}
+          {showListbox && (
+            <ul id={listboxId} role="listbox" aria-label="Ciudades sugeridas">
+              {suggestions.map((s, i) => (
+                <li
+                  key={s.id}
+                  id={`${listboxId}-option-${s.id}`}
+                  role="option"
+                  aria-selected={i === activeIndex}
+                  // onMouseDown (not onClick) so the pick wins over the input blur.
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    pick(s);
+                  }}
+                  onMouseEnter={() => setActiveIndex(i)}
+                  className={`cursor-pointer px-3 py-2 text-sm ${
+                    i === activeIndex ? "bg-brand/10 text-brand" : ""
+                  }`}
+                >
+                  {s.label}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
       {error && (
         <span id={errorId} className="text-xs text-red-600" role="alert">
