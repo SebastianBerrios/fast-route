@@ -458,7 +458,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      create_order_with_items: {
+        Args: {
+          p_assigned_to?: string
+          p_customer_id?: string
+          p_customer_name?: string
+          p_items?: Json
+          p_lat: number
+          p_lng: number
+          p_note?: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       order_status: "pending" | "delivered" | "cancelled"

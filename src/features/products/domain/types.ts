@@ -67,3 +67,19 @@ export function formatPrice(price: number): string {
 export function isLowStock(product: Product): boolean {
   return product.minStock > 0 && product.stock <= product.minStock;
 }
+
+export type StockLevel = "negative" | "low" | "ok";
+
+/**
+ * Classify on-hand stock for alerting. Stock is allowed to go negative
+ * (an order can be delivered past available stock — backorder), so the
+ * negative case must be surfaced explicitly instead of blending into "ok".
+ * - "negative": oversold (stock < 0) — always flagged, regardless of minStock.
+ * - "low": out of stock (0) or at/below the min-stock threshold.
+ * - "ok": healthy.
+ */
+export function stockLevel(stock: number, minStock: number): StockLevel {
+  if (stock < 0) return "negative";
+  if (stock <= 0 || (minStock > 0 && stock <= minStock)) return "low";
+  return "ok";
+}

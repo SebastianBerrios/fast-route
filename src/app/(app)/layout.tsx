@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/features/auth/server";
 import AppNav from "@/features/shell/AppNav";
+import SessionSync from "@/features/shell/SessionSync";
 
 export default async function AppLayout({
   children,
@@ -12,6 +13,7 @@ export default async function AppLayout({
 
   return (
     <div className="flex h-dvh w-full">
+      <SessionSync />
       <AppNav
         email={user.email}
         role={user.role}

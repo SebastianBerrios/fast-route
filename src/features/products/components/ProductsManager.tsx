@@ -7,14 +7,27 @@ import { usePendingActions } from "@/features/shell/ui/usePendingActions";
 import { ListRowsSkeleton } from "@/features/shell/ui/Skeleton";
 import {
  formatPrice,
- isLowStock,
+ stockLevel,
  STOCK_REASON_LABELS,
  type Product,
  type ProductInput,
+ type StockLevel,
  type StockReason,
 } from "@/features/products/domain/types";
 
 type Editing = { mode: "new" } | { mode: "edit"; product: Product } | null;
+
+const STOCK_BADGE_CLASS: Record<StockLevel, string> = {
+ negative: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400",
+ low: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
+ ok: "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400",
+};
+
+const STOCK_BADGE_TITLE: Record<StockLevel, string> = {
+ negative: "En negativo: se vendió más que el stock disponible (backorder)",
+ low: "Stock bajo o agotado",
+ ok: "En stock",
+};
 
 function StockAdjust({
  onSubmit,
@@ -175,6 +188,11 @@ export default function ProductsManager({ userId }: { userId: string }) {
  const stockSource = product.stockSourceId
  ? products.find((p) => p.id === product.stockSourceId)
  : undefined;
+ // Alert on the pool that actually moves: the source for linked
+ // products, the product itself otherwise. Stock may be negative
+ // (backorder), so surface that explicitly.
+ const effective = stockSource ?? product;
+ const level = stockLevel(effective.stock, effective.minStock);
  return (
  <li key={product.id} className="p-3 text-sm">
  <div className="flex items-center gap-3">
@@ -192,29 +210,22 @@ export default function ProductsManager({ userId }: { userId: string }) {
  {product.unit ? ` · ${product.unit}` : ""}
  </p>
  </div>
- {stockSource ? (
  <span
- className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-400"
- title={`Comparte el stock de ${stockSource.name}`}
- >
- Stock: {stockSource.stock} · usa stock de{" "}
- {stockSource.name}
- </span>
- ) : (
- <span
- className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
- isLowStock(product)
- ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
- : "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400"
- }`}
+ className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${STOCK_BADGE_CLASS[level]}`}
  title={
- isLowStock(product) ? "Stock bajo o agotado" : "En stock"
+ stockSource
+ ? `${STOCK_BADGE_TITLE[level]} · comparte el stock de ${stockSource.name}`
+ : STOCK_BADGE_TITLE[level]
  }
  >
- Stock: {product.stock}
- {isLowStock(product) ? " ⚠️" : ""}
+ Stock: {effective.stock}
+ {stockSource ? ` · usa stock de ${stockSource.name}` : ""}
+ {level === "negative"
+ ? " · en negativo"
+ : level === "low"
+ ? " ⚠️"
+ : ""}
  </span>
- )}
  {!product.stockSourceId && (
  <button
  type="button"

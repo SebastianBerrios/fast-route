@@ -92,6 +92,10 @@ export function useOrders(userId: string): UseOrders {
 
   const createOrder = useCallback(
     async (input: NewOrderInput) => {
+      if (!Number.isFinite(input.lng) || !Number.isFinite(input.lat)) {
+        setError("Ubicación inválida para el pedido.");
+        return;
+      }
       const { error } = await supabase.from("orders").insert({
         created_by: userId,
         lng: input.lng,
@@ -145,40 +149,36 @@ export function useOrders(userId: string): UseOrders {
       input: NewOrderInput,
       items: Omit<NewOrderItemInput, "orderId">[],
     ) => {
-      const { data, error } = await supabase
-        .from("orders")
-        .insert({
-          created_by: userId,
-          lng: input.lng,
-          lat: input.lat,
-          customer_name: input.customerName ?? null,
-          note: input.note ?? null,
-          customer_id: input.customerId ?? null,
-          assigned_to: input.assignedTo ?? null,
-        })
-        .select("id")
-        .single();
-      if (error || !data) {
-        setError(error?.message ?? "No se pudo crear el pedido.");
+      if (!Number.isFinite(input.lng) || !Number.isFinite(input.lat)) {
+        setError("Ubicación inválida para el pedido.");
         return false;
       }
-      if (items.length > 0) {
-        const rows = items.map((it) => ({
-          order_id: data.id,
+      // One transactional RPC: the order and its items commit together, or
+      // neither does — the old two-step insert could leave an orphan order
+      // when the items insert failed. created_by is set server-side from the
+      // session (auth.uid()), not trusted from the client.
+      const { error } = await supabase.rpc("create_order_with_items", {
+        p_lng: input.lng,
+        p_lat: input.lat,
+        p_customer_name: input.customerName ?? undefined,
+        p_note: input.note ?? undefined,
+        p_customer_id: input.customerId ?? undefined,
+        p_assigned_to: input.assignedTo ?? undefined,
+        p_items: items.map((it) => ({
           product_id: it.productId,
           product_name: it.productName,
           quantity: it.quantity,
           unit_price: it.unitPrice,
-        }));
-        const { error: itemsErr } = await supabase
-          .from("order_items")
-          .insert(rows);
-        if (itemsErr) setError(itemsErr.message);
+        })),
+      });
+      if (error) {
+        setError(error.message);
+        return false;
       }
       await fetchOrders();
       return true;
     },
-    [supabase, userId, fetchOrders],
+    [supabase, fetchOrders],
   );
 
   const cancelOrder = useCallback(
