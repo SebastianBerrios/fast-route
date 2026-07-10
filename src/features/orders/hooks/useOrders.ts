@@ -8,6 +8,10 @@ import {
   type NewOrderItemInput,
   type Order,
 } from "@/features/orders/domain/types";
+import {
+  insertOrder,
+  insertOrderWithItems,
+} from "@/features/orders/services/orders";
 
 export interface UseOrders {
   orders: Order[];
@@ -92,20 +96,8 @@ export function useOrders(userId: string): UseOrders {
 
   const createOrder = useCallback(
     async (input: NewOrderInput) => {
-      if (!Number.isFinite(input.lng) || !Number.isFinite(input.lat)) {
-        setError("Ubicación inválida para el pedido.");
-        return;
-      }
-      const { error } = await supabase.from("orders").insert({
-        created_by: userId,
-        lng: input.lng,
-        lat: input.lat,
-        customer_name: input.customerName ?? null,
-        note: input.note ?? null,
-        customer_id: input.customerId ?? null,
-        assigned_to: input.assignedTo ?? null,
-      });
-      if (error) setError(error.message);
+      const { error } = await insertOrder(supabase, userId, input);
+      if (error) setError(error);
       else await fetchOrders();
     },
     [supabase, userId, fetchOrders],
@@ -149,30 +141,9 @@ export function useOrders(userId: string): UseOrders {
       input: NewOrderInput,
       items: Omit<NewOrderItemInput, "orderId">[],
     ) => {
-      if (!Number.isFinite(input.lng) || !Number.isFinite(input.lat)) {
-        setError("Ubicación inválida para el pedido.");
-        return false;
-      }
-      // One transactional RPC: the order and its items commit together, or
-      // neither does — the old two-step insert could leave an orphan order
-      // when the items insert failed. created_by is set server-side from the
-      // session (auth.uid()), not trusted from the client.
-      const { error } = await supabase.rpc("create_order_with_items", {
-        p_lng: input.lng,
-        p_lat: input.lat,
-        p_customer_name: input.customerName ?? undefined,
-        p_note: input.note ?? undefined,
-        p_customer_id: input.customerId ?? undefined,
-        p_assigned_to: input.assignedTo ?? undefined,
-        p_items: items.map((it) => ({
-          product_id: it.productId,
-          product_name: it.productName,
-          quantity: it.quantity,
-          unit_price: it.unitPrice,
-        })),
-      });
+      const { error } = await insertOrderWithItems(supabase, input, items);
       if (error) {
-        setError(error.message);
+        setError(error);
         return false;
       }
       await fetchOrders();
