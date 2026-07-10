@@ -7,6 +7,7 @@ import {
   type Customer,
   type CustomerInput,
 } from "@/features/customers/domain/types";
+import { insertCustomer } from "@/features/customers/services/customers";
 
 export interface UseCustomers {
   customers: Customer[];
@@ -16,6 +17,14 @@ export interface UseCustomers {
   updateCustomer: (id: string, input: CustomerInput) => Promise<boolean>;
   removeCustomer: (id: string) => Promise<boolean>;
 }
+
+// Realtime topics must be unique per subscription: the browser client is a
+// singleton and `supabase.channel(name)` returns an existing channel for a
+// reused topic. Calling `.on("postgres_changes", …)` on an already-subscribed
+// channel throws — StrictMode's double-mounted effects hit this because the
+// async `removeChannel` from the first run hasn't finished when the second
+// run reuses the topic.
+let channelSeq = 0;
 
 /** Loads customers and keeps them in sync in real time across devices. */
 export function useCustomers(userId: string): UseCustomers {
@@ -42,7 +51,7 @@ export function useCustomers(userId: string): UseCustomers {
     fetchCustomers();
 
     const channel = supabase
-      .channel("customers-realtime")
+      .channel(`customers-realtime-${++channelSeq}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "customers" },
@@ -57,11 +66,13 @@ export function useCustomers(userId: string): UseCustomers {
 
   const createCustomer = useCallback(
     async (input: CustomerInput) => {
-      const { error } = await supabase
-        .from("customers")
-        .insert({ created_by: userId, ...input });
-      if (error) {
-        setError(error.message);
+      const { error: errorMessage } = await insertCustomer(
+        supabase,
+        userId,
+        input,
+      );
+      if (errorMessage) {
+        setError(errorMessage);
         return false;
       }
       await fetchCustomers();
