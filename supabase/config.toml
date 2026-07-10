@@ -1,0 +1,10 @@
+# Supabase local config.
+# Linked remote project ref: vzxrsvqnxkoiuwvdozxv (name: "fast-route", region: us-west-2)
+#
+# This file is intentionally minimal. If you adopt the Supabase CLI for local
+# development, run `supabase init` to generate the full default template and
+# merge it here, then `supabase link --project-ref vzxrsvqnxkoiuwvdozxv`.
+project_id = "fast-route"
+
+[db]
+major_version = 17
