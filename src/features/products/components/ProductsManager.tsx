@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { useProducts } from "@/features/products/hooks/useProducts";
+import ProductForm from "@/features/products/components/ProductForm";
+import { usePendingActions } from "@/features/shell/ui/usePendingActions";
+import { ListRowsSkeleton } from "@/features/shell/ui/Skeleton";
 import {
  formatPrice,
  isLowStock,
@@ -11,159 +14,31 @@ import {
  type StockReason,
 } from "@/features/products/domain/types";
 
-const inputClass =
-"rounded-lg border border-line px-3 py-2 text-sm outline-none focus:border-brand bg-background";
-
 type Editing = { mode: "new" } | { mode: "edit"; product: Product } | null;
-
-function ProductForm({
- initial,
- submitting,
- onSubmit,
- onCancel,
-}: {
- initial?: Product | null;
- submitting: boolean;
- onSubmit: (input: ProductInput) => void;
- onCancel: () => void;
-}) {
- const [name, setName] = useState(initial?.name ?? "");
- const [unit, setUnit] = useState(initial?.unit ?? "");
- const [price, setPrice] = useState(initial ? String(initial.price) : "");
- const [minStock, setMinStock] = useState(
- initial ? String(initial.minStock) : "0",
- );
- const [initialStock, setInitialStock] = useState("0");
- const [isActive, setIsActive] = useState(initial?.isActive ?? true);
-
- const handleSubmit = (e: React.FormEvent) => {
- e.preventDefault();
- if (!name.trim()) return;
- onSubmit({
- name: name.trim(),
- unit: unit.trim() || null,
- price: Number(price) || 0,
- minStock: Number(minStock) || 0,
- isActive,
- initialStock: initial ? undefined : Number(initialStock) || 0,
- });
- };
-
- return (
- <form onSubmit={handleSubmit} className="flex flex-col gap-3">
- <label className="flex flex-col gap-1 text-sm">
- <span className="text-muted dark:text-muted">Nombre *</span>
- <input
- className={inputClass}
- value={name}
- onChange={(e) => setName(e.target.value)}
- required
- />
- </label>
-
- <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
- <label className="flex flex-col gap-1 text-sm">
- <span className="text-muted dark:text-muted">Unidad</span>
- <input
- className={inputClass}
- value={unit}
- placeholder="Ej: bidón 20L"
- onChange={(e) => setUnit(e.target.value)}
- />
- </label>
- <label className="flex flex-col gap-1 text-sm">
- <span className="text-muted dark:text-muted">
- Precio (S/)
- </span>
- <input
- className={inputClass}
- type="number"
- min="0"
- step="0.01"
- value={price}
- onChange={(e) => setPrice(e.target.value)}
- />
- </label>
- <label className="flex flex-col gap-1 text-sm">
- <span className="text-muted dark:text-muted">
- Stock mínimo (alerta)
- </span>
- <input
- className={inputClass}
- type="number"
- min="0"
- step="1"
- value={minStock}
- onChange={(e) => setMinStock(e.target.value)}
- />
- </label>
- {!initial && (
- <label className="flex flex-col gap-1 text-sm">
- <span className="text-muted dark:text-muted">
- Stock inicial
- </span>
- <input
- className={inputClass}
- type="number"
- min="0"
- step="1"
- value={initialStock}
- onChange={(e) => setInitialStock(e.target.value)}
- />
- </label>
- )}
- </div>
-
- <label className="flex items-center gap-2 text-sm">
- <input
- type="checkbox"
- checked={isActive}
- onChange={(e) => setIsActive(e.target.checked)}
- />
- Activo (disponible para vender)
- </label>
-
- <div className="flex gap-2">
- <button
- type="submit"
- disabled={submitting || !name.trim()}
- className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand/90 disabled:opacity-50"
- >
- {submitting
- ? "Guardando…"
- : initial
- ? "Guardar cambios"
- : "Crear producto"}
- </button>
- <button
- type="button"
- onClick={onCancel}
- className="rounded-lg border border-line px-4 py-2 text-sm transition-colors hover:bg-black/5 dark:hover:bg-white/10"
- >
- Cancelar
- </button>
- </div>
- </form>
- );
-}
 
 function StockAdjust({
  onSubmit,
  onCancel,
 }: {
- onSubmit: (delta: number, reason: StockReason, note: string) => void;
+ onSubmit: (delta: number, reason: StockReason, note: string) => Promise<void>;
  onCancel: () => void;
 }) {
  const [amount, setAmount] = useState("");
  const [reason, setReason] = useState<StockReason>("purchase");
  const [note, setNote] = useState("");
+ const [applying, setApplying] = useState(false);
 
- const handle = () => {
+ const handle = async () => {
  const value = Number(amount);
- if (!value) return;
+ if (!value || applying) return;
  // Adjustments and sales reduce stock; purchases add.
  const delta = reason === "purchase" ? Math.abs(value) : value;
- onSubmit(delta, reason, note);
+ setApplying(true);
+ try {
+ await onSubmit(delta, reason, note);
+ } finally {
+ setApplying(false);
+ }
  };
 
  return (
@@ -195,10 +70,10 @@ function StockAdjust({
  <button
  type="button"
  onClick={handle}
- disabled={!Number(amount)}
+ disabled={!Number(amount) || applying}
  className="rounded-md bg-brand px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-brand/90 disabled:opacity-40"
  >
- Aplicar
+ {applying ? "Aplicando…" : "Aplicar"}
  </button>
  <button
  type="button"
@@ -229,6 +104,8 @@ export default function ProductsManager({ userId }: { userId: string }) {
  const [editing, setEditing] = useState<Editing>(null);
  const [submitting, setSubmitting] = useState(false);
  const [adjustingId, setAdjustingId] = useState<string | null>(null);
+ const [deleteError, setDeleteError] = useState<string | null>(null);
+ const { run, isPending } = usePendingActions();
 
  const handleSubmit = async (input: ProductInput) => {
  setSubmitting(true);
@@ -247,6 +124,11 @@ export default function ProductsManager({ userId }: { userId: string }) {
  {error}
  </p>
  )}
+ {deleteError && (
+ <p className="text-sm text-red-600" role="alert">
+ {deleteError}
+ </p>
+ )}
 
  {editing ? (
  <section className="rounded-xl border border-line bg-surface p-4">
@@ -256,6 +138,14 @@ export default function ProductsManager({ userId }: { userId: string }) {
  <ProductForm
  initial={editing.mode === "edit" ? editing.product : null}
  submitting={submitting}
+ stockSourceCandidates={products
+ .filter(
+ (p) =>
+ p.isActive &&
+ !p.stockSourceId &&
+ (editing.mode !== "edit" || p.id !== editing.product.id),
+ )
+ .map((p) => ({ id: p.id, name: p.name }))}
  onSubmit={handleSubmit}
  onCancel={() => setEditing(null)}
  />
@@ -272,14 +162,20 @@ export default function ProductsManager({ userId }: { userId: string }) {
 
  <section className="rounded-xl border border-line ">
  {loading ? (
- <p className="p-4 text-sm text-muted">Cargando productos…</p>
+ <ListRowsSkeleton rows={4} label="Cargando productos…" />
  ) : products.length === 0 ? (
  <p className="p-4 text-sm text-muted">
  Todavía no hay productos. Creá el primero.
  </p>
  ) : (
  <ul className="divide-y divide-line ">
- {products.map((product) => (
+ {products.map((product) => {
+ // Linked products sell from their source's pool: surface the
+ // source's stock and leave alerts/adjustments to the owner.
+ const stockSource = product.stockSourceId
+ ? products.find((p) => p.id === product.stockSourceId)
+ : undefined;
+ return (
  <li key={product.id} className="p-3 text-sm">
  <div className="flex items-center gap-3">
  <div className="min-w-0 flex-1">
@@ -296,6 +192,15 @@ export default function ProductsManager({ userId }: { userId: string }) {
  {product.unit ? ` · ${product.unit}` : ""}
  </p>
  </div>
+ {stockSource ? (
+ <span
+ className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-400"
+ title={`Comparte el stock de ${stockSource.name}`}
+ >
+ Stock: {stockSource.stock} · usa stock de{" "}
+ {stockSource.name}
+ </span>
+ ) : (
  <span
  className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
  isLowStock(product)
@@ -309,6 +214,8 @@ export default function ProductsManager({ userId }: { userId: string }) {
  Stock: {product.stock}
  {isLowStock(product) ? " ⚠️" : ""}
  </span>
+ )}
+ {!product.stockSourceId && (
  <button
  type="button"
  onClick={() =>
@@ -320,6 +227,7 @@ export default function ProductsManager({ userId }: { userId: string }) {
  >
  Ajustar
  </button>
+ )}
  <button
  type="button"
  onClick={() => setEditing({ mode: "edit", product })}
@@ -330,13 +238,34 @@ export default function ProductsManager({ userId }: { userId: string }) {
  <button
  type="button"
  onClick={() => {
+ // Deleting a pool owner would leave dependents on their
+ // stale own stock. The DB blocks it too; catch it here
+ // with a clearer message.
+ const dependents = products.filter(
+ (p) => p.stockSourceId === product.id,
+ );
+ if (dependents.length > 0) {
+ const names = dependents
+ .map((d) => d.name)
+ .join(", ");
+ setDeleteError(
+ dependents.length === 1
+ ? `${names} comparte su stock. Desvinculalo antes de eliminarlo.`
+ : `${names} comparten su stock. Desvinculalos antes de eliminarlo.`,
+ );
+ return;
+ }
+ setDeleteError(null);
  if (confirm(`¿Eliminar ${product.name}?`)) {
- void removeProduct(product.id);
+ void run(`remove:${product.id}`, () =>
+ removeProduct(product.id),
+ );
  }
  }}
- className="shrink-0 rounded-md px-2 py-1 text-muted transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950"
+ disabled={isPending(`remove:${product.id}`)}
+ className="shrink-0 rounded-md px-2 py-1 text-muted transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-950"
  >
- ✕
+ {isPending(`remove:${product.id}`) ? "…" : "✕"}
  </button>
  </div>
 
@@ -355,7 +284,8 @@ export default function ProductsManager({ userId }: { userId: string }) {
  />
  )}
  </li>
- ))}
+ );
+ })}
  </ul>
  )}
  </section>

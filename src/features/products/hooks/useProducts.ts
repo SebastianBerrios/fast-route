@@ -8,6 +8,10 @@ import {
   type ProductInput,
   type StockReason,
 } from "@/features/products/domain/types";
+import {
+  insertProduct,
+  toProductRow,
+} from "@/features/products/services/products";
 
 export interface UseProducts {
   products: Product[];
@@ -24,20 +28,13 @@ export interface UseProducts {
   ) => Promise<boolean>;
 }
 
-/**
- * Maps the camelCase form input to the snake_case table columns.
- * Note: `stock` is intentionally excluded — it changes only via the
- * stock movements ledger, never by editing the product directly.
- */
-function toRow(input: ProductInput) {
-  return {
-    name: input.name,
-    unit: input.unit ?? null,
-    price: input.price,
-    is_active: input.isActive ?? true,
-    min_stock: input.minStock ?? 0,
-  };
-}
+// Realtime topics must be unique per subscription: the browser client is a
+// singleton and `supabase.channel(name)` returns an existing channel for a
+// reused topic. Calling `.on("postgres_changes", …)` on an already-subscribed
+// channel throws — StrictMode's double-mounted effects hit this because the
+// async `removeChannel` from the first run hasn't finished when the second
+// run reuses the topic.
+let channelSeq = 0;
 
 export function useProducts(userId: string): UseProducts {
   const [products, setProducts] = useState<Product[]>([]);
@@ -63,7 +60,7 @@ export function useProducts(userId: string): UseProducts {
     fetchProducts();
 
     const channel = supabase
-      .channel("products-realtime")
+      .channel(`products-realtime-${++channelSeq}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "products" },
@@ -78,26 +75,20 @@ export function useProducts(userId: string): UseProducts {
 
   const createProduct = useCallback(
     async (input: ProductInput) => {
-      const { data, error } = await supabase
-        .from("products")
-        .insert({ created_by: userId, ...toRow(input) })
-        .select("id")
-        .single();
-      if (error) {
-        setError(error.message);
-        return false;
+      const { id, error: errorMessage } = await insertProduct(
+        supabase,
+        userId,
+        input,
+      );
+      // Refresh first: a fetch success clears the error state, and a partial
+      // failure (product created, ledger insert failed) must survive it.
+      if (id) await fetchProducts();
+      if (errorMessage) {
+        setError(errorMessage);
+        // The product exists on partial failure: report success so the form
+        // closes instead of re-submitting a duplicate.
+        return Boolean(id);
       }
-      // Record the starting stock as an initial movement (keeps the ledger honest).
-      if (input.initialStock && input.initialStock !== 0) {
-        await supabase.from("stock_movements").insert({
-          product_id: data.id,
-          delta: input.initialStock,
-          reason: "purchase",
-          created_by: userId,
-          note: "Stock inicial",
-        });
-      }
-      await fetchProducts();
       return true;
     },
     [supabase, userId, fetchProducts],
@@ -107,7 +98,7 @@ export function useProducts(userId: string): UseProducts {
     async (id: string, input: ProductInput) => {
       const { error } = await supabase
         .from("products")
-        .update(toRow(input))
+        .update(toProductRow(input))
         .eq("id", id);
       if (error) {
         setError(error.message);

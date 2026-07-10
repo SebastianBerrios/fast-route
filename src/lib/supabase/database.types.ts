@@ -277,6 +277,7 @@ export type Database = {
           name: string
           price: number
           stock: number
+          stock_source_id: string | null
           tenant_id: string
           unit: string | null
           updated_at: string
@@ -290,6 +291,7 @@ export type Database = {
           name: string
           price?: number
           stock?: number
+          stock_source_id?: string | null
           tenant_id?: string
           unit?: string | null
           updated_at?: string
@@ -303,11 +305,19 @@ export type Database = {
           name?: string
           price?: number
           stock?: number
+          stock_source_id?: string | null
           tenant_id?: string
           unit?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "products_stock_source_id_fkey"
+            columns: ["stock_source_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "products_tenant_id_fkey"
             columns: ["tenant_id"]

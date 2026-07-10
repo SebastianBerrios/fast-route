@@ -20,6 +20,11 @@ export interface Product {
   stock: number;
   /** Low-stock threshold; 0 disables the alert. */
   minStock: number;
+  /**
+   * When set, this product sells from another product's stock pool
+   * (e.g. a refill sells the same physical item as the full bottle).
+   */
+  stockSourceId: string | null;
   createdAt: string;
 }
 
@@ -32,6 +37,8 @@ export interface ProductInput {
   minStock?: number;
   /** Optional starting stock — recorded as an initial movement on create. */
   initialStock?: number;
+  /** Deduct stock from this product's pool instead of an own pool. */
+  stockSourceId?: string | null;
 }
 
 type ProductRow = Database["public"]["Tables"]["products"]["Row"];
@@ -46,6 +53,7 @@ export function rowToProduct(row: ProductRow): Product {
     isActive: row.is_active,
     stock: Number(row.stock),
     minStock: Number(row.min_stock),
+    stockSourceId: row.stock_source_id,
     createdAt: row.created_at,
   };
 }
