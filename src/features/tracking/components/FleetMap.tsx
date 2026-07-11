@@ -29,6 +29,24 @@ function driverEl(name: string): HTMLElement {
   return el;
 }
 
+/**
+ * Popup label content. Built as a DOM node (textContent, not HTML) so the
+ * driver name can't inject markup, and with an explicit dark color so it stays
+ * readable — the popup's white background otherwise inherits the app's light
+ * text color and the name is nearly invisible.
+ */
+function driverPopupEl(name: string): HTMLElement {
+  const el = document.createElement("div");
+  el.textContent = `🛵 ${name}`;
+  Object.assign(el.style, {
+    color: "#111827",
+    fontWeight: "600",
+    fontSize: "13px",
+    whiteSpace: "nowrap",
+  } satisfies Partial<CSSStyleDeclaration>);
+  return el;
+}
+
 export default function FleetMap({
   drivers,
   defaultCenter,
@@ -72,7 +90,12 @@ export default function FleetMap({
     markersRef.current = drivers.map((d) =>
       new maplibregl.Marker({ element: driverEl(d.name) })
         .setLngLat([d.lng, d.lat])
-        .setPopup(new maplibregl.Popup({ offset: 24 }).setText(`🛵 ${d.name}`))
+        .setPopup(
+          new maplibregl.Popup({
+            offset: 24,
+            closeButton: false,
+          }).setDOMContent(driverPopupEl(d.name)),
+        )
         .addTo(map),
     );
 
