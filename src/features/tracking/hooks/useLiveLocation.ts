@@ -52,12 +52,20 @@ export function useLiveLocation(userId: string): LiveLocation {
         const now = Date.now();
         if (now - lastUpsert.current > UPSERT_EVERY_MS) {
           lastUpsert.current = now;
-          void supabase.from("driver_locations").upsert({
-            user_id: userId,
-            lng: c.lng,
-            lat: c.lat,
-            updated_at: new Date().toISOString(),
-          });
+          // supabase-js query builders are lazy: they only run when awaited or
+          // `.then`-ed. The old `void upsert(...)` never sent the request, so
+          // sharing looked active but wrote nothing. Chaining `.then` fires it.
+          void supabase
+            .from("driver_locations")
+            .upsert({
+              user_id: userId,
+              lng: c.lng,
+              lat: c.lat,
+              updated_at: new Date().toISOString(),
+            })
+            .then(({ error }) => {
+              if (error) setError("No se pudo compartir tu ubicación.");
+            });
         }
       },
       (err) => {
@@ -77,7 +85,12 @@ export function useLiveLocation(userId: string): LiveLocation {
     clearWatch();
     setSharing(false);
     // Remove the shared position so the driver drops off the live map.
-    void supabase.from("driver_locations").delete().eq("user_id", userId);
+    // `.then` is required for the query to actually run (builders are lazy).
+    void supabase
+      .from("driver_locations")
+      .delete()
+      .eq("user_id", userId)
+      .then(() => {});
   }, [clearWatch, supabase, userId]);
 
   const toggle = useCallback(() => {
