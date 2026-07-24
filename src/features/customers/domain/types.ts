@@ -23,7 +23,7 @@ export interface CustomerInput {
   lat?: number | null;
 }
 
-type CustomerRow = Database["public"]["Tables"]["customers"]["Row"];
+type CustomerRow = Database["fast_route"]["Tables"]["customers"]["Row"];
 
 export function rowToCustomer(row: CustomerRow): Customer {
   return {

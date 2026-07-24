@@ -1,6 +1,6 @@
 import type { Database } from "@/lib/supabase/database.types";
 
-export type OrderStatus = Database["public"]["Enums"]["order_status"];
+export type OrderStatus = Database["fast_route"]["Enums"]["order_status"];
 
 /** A single product line within an order. */
 export interface OrderItem {
@@ -57,8 +57,8 @@ export interface NewOrderItemInput {
   unitPrice: number;
 }
 
-type OrderRow = Database["public"]["Tables"]["orders"]["Row"];
-type OrderItemRow = Database["public"]["Tables"]["order_items"]["Row"];
+type OrderRow = Database["fast_route"]["Tables"]["orders"]["Row"];
+type OrderItemRow = Database["fast_route"]["Tables"]["order_items"]["Row"];
 
 export function lineTotal(item: OrderItem): number {
   return item.quantity * item.unitPrice;

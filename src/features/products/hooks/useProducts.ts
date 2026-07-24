@@ -63,7 +63,7 @@ export function useProducts(userId: string): UseProducts {
       .channel(`products-realtime-${++channelSeq}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "products" },
+        { event: "*", schema: "fast_route", table: "products" },
         () => fetchProducts(),
       )
       .subscribe();

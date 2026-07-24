@@ -121,7 +121,7 @@ export function useMetrics(period: MetricPeriod): Metrics {
       .channel(`metrics-realtime-${++channelSeq}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "orders" },
+        { event: "*", schema: "fast_route", table: "orders" },
         () => fetchData(),
       )
       .subscribe();

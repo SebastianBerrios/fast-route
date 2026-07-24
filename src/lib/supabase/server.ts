@@ -11,7 +11,9 @@ export async function createClient() {
   const cookieStore = await cookies();
   const { url, anonKey } = getSupabaseEnv();
 
-  return createServerClient<Database>(url, anonKey, {
+  return createServerClient<Database, "fast_route">(url, anonKey, {
+    // This app lives in its own `fast_route` schema, not `public`.
+    db: { schema: "fast_route" },
     cookies: {
       getAll() {
         return cookieStore.getAll();

@@ -1,6 +1,6 @@
 import type { Database } from "@/lib/supabase/database.types";
 
-export type StockReason = Database["public"]["Enums"]["stock_reason"];
+export type StockReason = Database["fast_route"]["Enums"]["stock_reason"];
 
 export const STOCK_REASON_LABELS: Record<StockReason, string> = {
   purchase: "Compra / reposición",
@@ -41,7 +41,7 @@ export interface ProductInput {
   stockSourceId?: string | null;
 }
 
-type ProductRow = Database["public"]["Tables"]["products"]["Row"];
+type ProductRow = Database["fast_route"]["Tables"]["products"]["Row"];
 
 export function rowToProduct(row: ProductRow): Product {
   return {

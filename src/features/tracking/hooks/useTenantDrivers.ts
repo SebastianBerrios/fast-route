@@ -72,7 +72,7 @@ export function useTenantDrivers(currentUserId: string): UseTenantDrivers {
       .channel(`driver-locations-realtime-${++channelSeq}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "driver_locations" },
+        { event: "*", schema: "fast_route", table: "driver_locations" },
         () => fetchDrivers(),
       )
       .subscribe();

@@ -7,12 +7,7 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.5"
-  }
-  public: {
+  fast_route: {
     Tables: {
       customers: {
         Row: {
@@ -104,7 +99,7 @@ export type Database = {
           email: string | null
           expires_at: string
           id: string
-          role: Database["public"]["Enums"]["user_role"]
+          role: Database["fast_route"]["Enums"]["user_role"]
           tenant_id: string
           used_at: string | null
           used_by: string | null
@@ -116,7 +111,7 @@ export type Database = {
           email?: string | null
           expires_at?: string
           id?: string
-          role?: Database["public"]["Enums"]["user_role"]
+          role?: Database["fast_route"]["Enums"]["user_role"]
           tenant_id?: string
           used_at?: string | null
           used_by?: string | null
@@ -128,7 +123,7 @@ export type Database = {
           email?: string | null
           expires_at?: string
           id?: string
-          role?: Database["public"]["Enums"]["user_role"]
+          role?: Database["fast_route"]["Enums"]["user_role"]
           tenant_id?: string
           used_at?: string | null
           used_by?: string | null
@@ -212,7 +207,7 @@ export type Database = {
           lat: number
           lng: number
           note: string | null
-          status: Database["public"]["Enums"]["order_status"]
+          status: Database["fast_route"]["Enums"]["order_status"]
           tenant_id: string
           updated_at: string
         }
@@ -229,7 +224,7 @@ export type Database = {
           lat: number
           lng: number
           note?: string | null
-          status?: Database["public"]["Enums"]["order_status"]
+          status?: Database["fast_route"]["Enums"]["order_status"]
           tenant_id?: string
           updated_at?: string
         }
@@ -246,7 +241,7 @@ export type Database = {
           lat?: number
           lng?: number
           note?: string | null
-          status?: Database["public"]["Enums"]["order_status"]
+          status?: Database["fast_route"]["Enums"]["order_status"]
           tenant_id?: string
           updated_at?: string
         }
@@ -334,7 +329,7 @@ export type Database = {
           full_name: string | null
           id: string
           permissions: string[]
-          role: Database["public"]["Enums"]["user_role"]
+          role: Database["fast_route"]["Enums"]["user_role"]
           tenant_id: string
         }
         Insert: {
@@ -343,7 +338,7 @@ export type Database = {
           full_name?: string | null
           id: string
           permissions?: string[]
-          role?: Database["public"]["Enums"]["user_role"]
+          role?: Database["fast_route"]["Enums"]["user_role"]
           tenant_id: string
         }
         Update: {
@@ -352,7 +347,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           permissions?: string[]
-          role?: Database["public"]["Enums"]["user_role"]
+          role?: Database["fast_route"]["Enums"]["user_role"]
           tenant_id?: string
         }
         Relationships: [
@@ -374,7 +369,7 @@ export type Database = {
           note: string | null
           order_id: string | null
           product_id: string
-          reason: Database["public"]["Enums"]["stock_reason"]
+          reason: Database["fast_route"]["Enums"]["stock_reason"]
           tenant_id: string
         }
         Insert: {
@@ -385,7 +380,7 @@ export type Database = {
           note?: string | null
           order_id?: string | null
           product_id: string
-          reason?: Database["public"]["Enums"]["stock_reason"]
+          reason?: Database["fast_route"]["Enums"]["stock_reason"]
           tenant_id?: string
         }
         Update: {
@@ -396,7 +391,7 @@ export type Database = {
           note?: string | null
           order_id?: string | null
           product_id?: string
-          reason?: Database["public"]["Enums"]["stock_reason"]
+          reason?: Database["fast_route"]["Enums"]["stock_reason"]
           tenant_id?: string
         }
         Relationships: [
@@ -475,6 +470,48 @@ export type Database = {
       order_status: "pending" | "delivered" | "cancelled"
       stock_reason: "purchase" | "sale" | "adjustment"
       user_role: "admin" | "seller" | "driver"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+  public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      [_ in never]: never
+    }
+    Enums: {
+      [_ in never]: never
     }
     CompositeTypes: {
       [_ in never]: never
@@ -600,11 +637,18 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  public: {
+  fast_route: {
     Enums: {
       order_status: ["pending", "delivered", "cancelled"],
       stock_reason: ["purchase", "sale", "adjustment"],
       user_role: ["admin", "seller", "driver"],
     },
   },
+  graphql_public: {
+    Enums: {},
+  },
+  public: {
+    Enums: {},
+  },
 } as const
+

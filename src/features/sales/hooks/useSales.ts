@@ -50,7 +50,7 @@ export function useSales(period: SalePeriod): UseSales {
       .channel(`sales-realtime-${++channelSeq}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "orders" },
+        { event: "*", schema: "fast_route", table: "orders" },
         () => fetchSales(),
       )
       .subscribe();

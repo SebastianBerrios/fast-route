@@ -75,14 +75,14 @@ export function useOrders(userId: string): UseOrders {
       .channel(`orders-realtime-${++channelSeq}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "orders" },
+        { event: "*", schema: "fast_route", table: "orders" },
         () => {
           fetchOrders();
         },
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "order_items" },
+        { event: "*", schema: "fast_route", table: "order_items" },
         () => {
           fetchOrders();
         },

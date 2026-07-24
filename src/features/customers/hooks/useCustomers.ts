@@ -54,7 +54,7 @@ export function useCustomers(userId: string): UseCustomers {
       .channel(`customers-realtime-${++channelSeq}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "customers" },
+        { event: "*", schema: "fast_route", table: "customers" },
         () => fetchCustomers(),
       )
       .subscribe();
