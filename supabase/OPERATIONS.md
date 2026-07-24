@@ -70,3 +70,24 @@ Both reloads are required:
    then both reloads.
 4. In the app's Supabase client: `createClient(url, key, { db: { schema: '<app>' } })`,
    and set realtime `postgres_changes` filters to `schema: '<app>'`.
+
+## Shared limits & when to graduate an app
+
+Every app in this project shares ONE quota and ONE fate:
+- Free plan: 500 MB database, 1 GB storage, nano compute, 50k MAU — total across all schemas.
+- Single point of failure: an incident here affects every app.
+- Single auth pool: all apps share `auth.users` and the same JWT secret. The only
+  boundary between apps is RLS + per-app scoping (e.g. `tenant_id` / `app_metadata`).
+
+Graduate an app to its OWN project (or a Hetzner self-host) when ANY is true:
+- It gets a real paying customer / real production traffic.
+- It needs an isolated user base (separate auth + branding).
+- Its data approaches a large share of the 500 MB, or it needs more compute.
+- It needs backups / point-in-time recovery independent of the others.
+
+Graduating is clean because each app is a single schema:
+1. Create the new project (or Hetzner stack).
+2. `pg_dump --schema=<app>` (structure + data), restore into the new project.
+3. Point that app's client/env at the new project and expose its schema there.
+4. In this project: drop the `<app>` schema, delete its row from
+   `public.rls_managed_schemas`, and remove it from `pgrst.db_schemas`.
