@@ -43,6 +43,7 @@ export async function updateSession(request: NextRequest) {
   const isPublic = PUBLIC_PATHS.some(
     (p) => path === p || path.startsWith(p + "/"),
   );
+  const isNoAccess = path === "/no-access";
 
   // Not signed in and trying to reach something protected.
   if (!user && !isPublic) {
@@ -55,11 +56,37 @@ export async function updateSession(request: NextRequest) {
     return copyCookies(supabaseResponse, NextResponse.redirect(redirectUrl));
   }
 
-  // Signed in but on the login page -> send to the app.
-  if (user && path.startsWith("/login")) {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/";
-    return copyCookies(supabaseResponse, NextResponse.redirect(redirectUrl));
+  if (user) {
+    // A valid session in the shared mvp-lab auth pool is NOT proof of belonging.
+    // Membership is proven by the JWT claims the enrollment sync trigger writes:
+    // a real fast_route member always carries role + tenant_id.
+    const claims = user.app_metadata as { role?: string; tenant_id?: string };
+    const isMember = Boolean(claims.role && claims.tenant_id);
+
+    // On the login page: members go into the app, non-members to the wall.
+    if (path.startsWith("/login")) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = isMember ? "/" : "/no-access";
+      return copyCookies(supabaseResponse, NextResponse.redirect(redirectUrl));
+    }
+
+    // Authenticated non-member reaching the app -> dead end. NEVER /login: they
+    // hold a valid session, so /login would just bounce back here (a loop).
+    if (!isMember && !isNoAccess && !isPublic) {
+      if (path.startsWith("/api")) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = "/no-access";
+      return copyCookies(supabaseResponse, NextResponse.redirect(redirectUrl));
+    }
+
+    // A member has no business on the wall.
+    if (isMember && isNoAccess) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = "/";
+      return copyCookies(supabaseResponse, NextResponse.redirect(redirectUrl));
+    }
   }
 
   return supabaseResponse;
