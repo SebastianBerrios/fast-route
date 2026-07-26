@@ -1,0 +1,6 @@
+-- Baseline stub. NOT a fast_route migration.
+-- This version belongs to another mvp-lab fleet app (ez_finance / oasis) and is
+-- already applied to the shared Postgres. mvp-lab shares ONE migration ledger
+-- across all app schemas, so this file is intentionally EMPTY here to let the
+-- fast-route `supabase db push` reconcile against that shared ledger without
+-- applying or owning a migration from another app. See supabase/OPERATIONS.md.
