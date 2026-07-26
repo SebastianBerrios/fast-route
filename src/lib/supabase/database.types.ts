@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   fast_route: {
     Tables: {
       customers: {
@@ -465,10 +470,7 @@ export type Database = {
         }
         Returns: string
       }
-      enroll_self: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      enroll_self: { Args: never; Returns: undefined }
     }
     Enums: {
       order_status: "pending" | "delivered" | "cancelled"
@@ -506,7 +508,18 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      rls_managed_schemas: {
+        Row: {
+          schema_name: string
+        }
+        Insert: {
+          schema_name: string
+        }
+        Update: {
+          schema_name?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -655,4 +668,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-
