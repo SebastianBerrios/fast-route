@@ -90,13 +90,17 @@ export async function authenticate(
       }
     }
 
+    // The enrollment intent is namespaced under `fast_route` so that ONLY this
+    // app's signup form can drive membership. In the shared mvp-lab auth pool,
+    // generic top-level keys could collide with other apps; enroll_self() reads
+    // exclusively from raw_user_meta_data -> 'fast_route'.
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
           full_name: fullName,
-          ...(inviteCode ? { invite_code: inviteCode } : businessData),
+          fast_route: inviteCode ? { invite_code: inviteCode } : businessData,
         },
       },
     });
@@ -114,6 +118,22 @@ export async function authenticate(
       password,
     });
     if (error) return { error: error.message };
+  }
+
+  // Enrollment is an explicit fast_route action, never a side effect of signing
+  // in to the shared auth pool. Idempotent, and a no-op for anyone who did not
+  // sign up through this app. Runs on the first authenticated session, covering
+  // both immediate-session sign-up and the post-confirmation sign-in.
+  const { error: enrollError } = await supabase.rpc("enroll_self");
+  if (enrollError) return { error: enrollError.message };
+  // Refresh so the role/permissions claims written during enrollment land in the
+  // JWT before the app reads them via getCurrentUser. A failure here is
+  // non-fatal: the enrollment is already committed, and SessionSync (on focus)
+  // plus the next sign-in reconcile the claims. The only effect is a brief
+  // under-privileged render — never elevated access.
+  const { error: refreshError } = await supabase.auth.refreshSession();
+  if (refreshError) {
+    console.error("enroll_self: session refresh failed", refreshError.message);
   }
 
   revalidatePath("/", "layout");

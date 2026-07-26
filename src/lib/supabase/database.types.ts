@@ -465,6 +465,10 @@ export type Database = {
         }
         Returns: string
       }
+      enroll_self: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       order_status: "pending" | "delivered" | "cancelled"

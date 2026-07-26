@@ -11,8 +11,15 @@ export interface CurrentUser {
 }
 
 /**
- * The signed-in user with role + permissions read from the JWT app_metadata,
- * so UI gating matches exactly what RLS enforces. Returns null if not signed in.
+ * The signed-in fast_route MEMBER with role + permissions read from the JWT
+ * app_metadata, so UI gating matches exactly what RLS enforces. Returns null
+ * when there is no session OR when the session belongs to the shared mvp-lab
+ * auth pool but is not a fast_route member.
+ *
+ * A real member always carries `role` + `tenant_id` claims (written by the
+ * enrollment sync trigger). Their absence means an authenticated non-member, who
+ * must NEVER be handed a fabricated identity — the /no-access wall (enforced in
+ * the proxy middleware) keeps them out of the app entirely.
  */
 export async function getCurrentUser(): Promise<CurrentUser | null> {
   const supabase = await createClient();
@@ -23,13 +30,16 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
 
   const meta = user.app_metadata as {
     role?: UserRole;
+    tenant_id?: string;
     permissions?: string[];
   };
+
+  if (!meta.role || !meta.tenant_id) return null;
 
   return {
     id: user.id,
     email: user.email ?? "",
-    role: meta.role ?? "seller",
+    role: meta.role,
     permissions: (meta.permissions ?? []) as Permission[],
   };
 }

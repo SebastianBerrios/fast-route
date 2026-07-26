@@ -25,9 +25,14 @@ regenerated afterwards.
 
 Most business rules are enforced here, not in the React app:
 
-- **Signup / tenancy** — `private.handle_new_user()` on `auth.users` creates the
-  tenant + profile (or joins via a valid, unexpired invite) and seeds role
-  permissions via `private.default_permissions()`.
+- **Signup / enrollment** — enrollment is explicit, never a signup side effect.
+  The app calls `fast_route.enroll_self()` on the first authenticated session; it
+  creates the tenant + profile (or joins via a valid, unexpired invite) and seeds
+  role permissions via `fast_route_private.default_permissions()`. It is
+  idempotent and a no-op for anyone who did not sign up through this app, so a
+  user from another mvp-lab app sharing the `auth.users` pool never enrolls here.
+  (There is deliberately NO trigger on `auth.users` — that would fire for every
+  app in the shared pool.)
 - **Stock** — delivering an order (`orders.status -> 'delivered'`) fires
   `private.deduct_stock_on_delivery()`, which writes a `sale` movement against the
   product's pool (`coalesce(stock_source_id, id)`); `private.apply_stock_movement()`
