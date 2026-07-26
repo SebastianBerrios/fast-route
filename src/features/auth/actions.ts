@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { geocodeAddress } from "@/features/routing/services/openrouteservice";
+import { getRequestOrigin } from "@/lib/http/origin";
 
 export interface AuthState {
   error?: string;
@@ -90,6 +91,10 @@ export async function authenticate(
       }
     }
 
+    // Confirmation emails must return the user to THIS deployment, not the shared
+    // Supabase Site URL — one mvp-lab project serves many app URLs, so relying on
+    // the single Site URL would send deployed users to localhost.
+    const origin = await getRequestOrigin();
     // The enrollment intent is namespaced under `fast_route` so that ONLY this
     // app's signup form can drive membership. In the shared mvp-lab auth pool,
     // generic top-level keys could collide with other apps; enroll_self() reads
@@ -98,6 +103,7 @@ export async function authenticate(
       email,
       password,
       options: {
+        emailRedirectTo: `${origin}/login`,
         data: {
           full_name: fullName,
           fast_route: inviteCode ? { invite_code: inviteCode } : businessData,
