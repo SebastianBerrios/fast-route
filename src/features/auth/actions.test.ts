@@ -21,6 +21,9 @@ vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("@/features/routing/services/openrouteservice", () => ({
   geocodeAddress: vi.fn(async () => []),
 }));
+vi.mock("@/lib/http/origin", () => ({
+  getRequestOrigin: vi.fn(async () => "https://test.app"),
+}));
 
 import { authenticate } from "./actions";
 
@@ -74,9 +77,10 @@ describe("authenticate — enrollment orchestration", () => {
 
     expect(signUp).toHaveBeenCalledWith(
       expect.objectContaining({
-        options: {
+        options: expect.objectContaining({
+          emailRedirectTo: "https://test.app/login",
           data: expect.objectContaining({ fast_route: { business_name: "Acme" } }),
-        },
+        }),
       }),
     );
     expect(rpc).toHaveBeenCalledWith("enroll_self");
@@ -118,9 +122,10 @@ describe("authenticate — enrollment orchestration", () => {
 
     expect(signUp).toHaveBeenCalledWith(
       expect.objectContaining({
-        options: {
+        options: expect.objectContaining({
+          emailRedirectTo: "https://test.app/login",
           data: expect.objectContaining({ fast_route: { invite_code: "abc123" } }),
-        },
+        }),
       }),
     );
   });
