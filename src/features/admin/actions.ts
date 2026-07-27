@@ -226,3 +226,55 @@ export async function createTeamMember(
   revalidatePath("/admin/users");
   return { error: null };
 }
+
+/** Raised by the `profiles_guard_last_admin` trigger. Matched on the wording it
+ *  shares with the message we show, so a rename in SQL surfaces as a raw error
+ *  rather than silently falling through to a misleading one. */
+const LAST_ADMIN_ERROR = "al menos un administrador";
+
+/**
+ * Ends a team member's access by deleting the `profiles` row that IS their
+ * membership. Uses the CALLER's session, not the service_role client, so
+ * Postgres enforces the tenant boundary instead of a `where` clause we have to
+ * remember to write.
+ *
+ * The `auth.users` row survives on purpose: the mvp-lab auth pool is shared and
+ * that account may belong to another app in the fleet. It is not ours to
+ * delete. The practical cost is that `createTeamMember` will later refuse that
+ * email — the caller is warned about this before confirming.
+ */
+export async function revokeTeamMemberAccess(
+  userId: string,
+): Promise<ActionResult> {
+  const actor = await getCurrentUser();
+  if (!actor) return { error: "Tu sesión expiró. Volvé a ingresar." };
+  if (!can(actor.permissions, "users.manage"))
+    return { error: "No tenés permiso para gestionar usuarios." };
+  // The RLS policy blocks this too. Checking here turns a silent zero-row
+  // delete into a message that explains itself.
+  if (actor.id === userId)
+    return { error: "No podés quitarte el acceso a vos mismo." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .delete()
+    .eq("id", userId)
+    .select("id");
+
+  if (error) {
+    if (error.message.includes(LAST_ADMIN_ERROR))
+      return {
+        error: "El negocio tiene que quedar con al menos un administrador.",
+      };
+    return { error: error.message };
+  }
+  // RLS deletes zero rows rather than failing when the caller may not touch
+  // this profile — most likely someone else's tenant.
+  if (!data || data.length === 0)
+    return { error: "No tenés permiso para quitar este acceso." };
+
+  revalidatePath("/admin/users");
+  revalidatePath("/", "layout");
+  return { error: null };
+}

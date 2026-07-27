@@ -7,6 +7,8 @@ const {
   listUsers,
   insert,
   from,
+  sessionFrom,
+  deleteSelect,
   revalidatePath,
 } = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
@@ -15,6 +17,8 @@ const {
   listUsers: vi.fn(),
   insert: vi.fn(),
   from: vi.fn(),
+  sessionFrom: vi.fn(),
+  deleteSelect: vi.fn(),
   revalidatePath: vi.fn(),
 }));
 
@@ -25,12 +29,14 @@ vi.mock("@/lib/supabase/admin", () => ({
     from,
   })),
 }));
+// The session-bound client is a DIFFERENT client from the service_role one:
+// revoking goes through it on purpose, so RLS enforces the tenant boundary.
 vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(async () => ({ from })),
+  createClient: vi.fn(async () => ({ from: sessionFrom })),
 }));
 vi.mock("next/cache", () => ({ revalidatePath }));
 
-import { createTeamMember } from "./actions";
+import { createTeamMember, revokeTeamMemberAccess } from "./actions";
 
 const ADMIN = {
   id: "admin-1",
@@ -55,6 +61,8 @@ beforeEach(() => {
     listUsers,
     insert,
     from,
+    sessionFrom,
+    deleteSelect,
     revalidatePath,
   ].forEach((m) => m.mockReset());
 
@@ -62,6 +70,12 @@ beforeEach(() => {
   createUser.mockResolvedValue({ data: { user: { id: "new-1" } }, error: null });
   insert.mockResolvedValue({ error: null });
   from.mockReturnValue({ insert });
+
+  // supabase.from("profiles").delete().eq("id", x).select("id")
+  deleteSelect.mockResolvedValue({ data: [{ id: "member-2" }], error: null });
+  sessionFrom.mockReturnValue({
+    delete: () => ({ eq: () => ({ select: deleteSelect }) }),
+  });
 });
 
 describe("createTeamMember — authorization", () => {
@@ -251,5 +265,60 @@ describe("createTeamMember — failure cleanup", () => {
 
     expect(res.error).toBe("auth is down");
     expect(insert).not.toHaveBeenCalled();
+  });
+});
+
+describe("revokeTeamMemberAccess", () => {
+  it("rejects a caller without users.manage", async () => {
+    getCurrentUser.mockResolvedValue({ ...ADMIN, permissions: ["orders.create"] });
+
+    const res = await revokeTeamMemberAccess("member-2");
+
+    expect(res.error).toBeTruthy();
+    expect(sessionFrom).not.toHaveBeenCalled();
+  });
+
+  it("refuses to let an admin revoke themselves", async () => {
+    const res = await revokeTeamMemberAccess(ADMIN.id);
+
+    expect(res.error).toBeTruthy();
+    // Self-removal is a lockout; it must not even reach the database.
+    expect(sessionFrom).not.toHaveBeenCalled();
+  });
+
+  it("deletes the membership through the SESSION client, so RLS scopes it", async () => {
+    const res = await revokeTeamMemberAccess("member-2");
+
+    expect(res.error).toBeNull();
+    expect(sessionFrom).toHaveBeenCalledWith("profiles");
+    // The service_role client bypasses RLS and must stay out of this path.
+    expect(from).not.toHaveBeenCalled();
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/users");
+  });
+
+  it("treats a zero-row delete as a permission failure, not success", async () => {
+    // RLS silently deletes nothing when the target is in another tenant.
+    deleteSelect.mockResolvedValue({ data: [], error: null });
+
+    const res = await revokeTeamMemberAccess("member-of-other-tenant");
+
+    expect(res.error).toBeTruthy();
+  });
+
+  it("translates the last-admin guard into something the admin can act on", async () => {
+    deleteSelect.mockResolvedValue({
+      data: null,
+      error: { message: 'El negocio tiene que quedar con al menos un administrador' },
+    });
+
+    const res = await revokeTeamMemberAccess("member-2");
+
+    expect(res.error).toContain("al menos un administrador");
+  });
+
+  it("never deletes the auth user: that account may belong to another app", async () => {
+    await revokeTeamMemberAccess("member-2");
+
+    expect(deleteUser).not.toHaveBeenCalled();
   });
 });

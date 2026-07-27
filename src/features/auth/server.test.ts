@@ -20,6 +20,11 @@ function withUser(app_metadata: Record<string, unknown> | undefined) {
   });
 }
 
+/** Claims as the sync trigger writes them: under the app's own key. */
+function withMember(claims: Record<string, unknown>) {
+  withUser({ fast_route: claims });
+}
+
 describe("getCurrentUser — membership gate", () => {
   beforeEach(() => getUser.mockReset());
 
@@ -35,17 +40,24 @@ describe("getCurrentUser — membership gate", () => {
   });
 
   it("returns null when only role is present (tenant_id missing)", async () => {
-    withUser({ role: "admin" });
+    withMember({ role: "admin" });
     expect(await getCurrentUser()).toBeNull();
   });
 
   it("returns null when only tenant_id is present (role missing)", async () => {
-    withUser({ tenant_id: "t1" });
+    withMember({ tenant_id: "t1" });
+    expect(await getCurrentUser()).toBeNull();
+  });
+
+  it("ignores TOP-LEVEL claims: only the fast_route namespace counts", async () => {
+    // app_metadata is one blob shared across the fleet. A top-level role from
+    // some other app must never be read as fast_route membership.
+    withUser({ role: "admin", tenant_id: "t1", permissions: ["users.manage"] });
     expect(await getCurrentUser()).toBeNull();
   });
 
   it("returns the member when both role and tenant_id claims are present", async () => {
-    withUser({ role: "admin", tenant_id: "t1", permissions: ["orders.manage"] });
+    withMember({ role: "admin", tenant_id: "t1", permissions: ["orders.manage"] });
     expect(await getCurrentUser()).toEqual({
       id: "u1",
       email: "a@b.c",
@@ -56,7 +68,7 @@ describe("getCurrentUser — membership gate", () => {
   });
 
   it("defaults permissions to [] when the claim is absent", async () => {
-    withUser({ role: "driver", tenant_id: "t1" });
+    withMember({ role: "driver", tenant_id: "t1" });
     expect(await getCurrentUser()).toEqual({
       id: "u1",
       email: "a@b.c",

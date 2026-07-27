@@ -19,10 +19,15 @@ export interface CurrentUser {
  * when there is no session OR when the session belongs to the shared mvp-lab
  * auth pool but is not a fast_route member.
  *
- * A real member always carries `role` + `tenant_id` claims (written by the
- * enrollment sync trigger). Their absence means an authenticated non-member, who
- * must NEVER be handed a fabricated identity — the /no-access wall (enforced in
- * the proxy middleware) keeps them out of the app entirely.
+ * Claims live under the `fast_route` key, never at the top level: app_metadata
+ * is ONE blob shared by every app in the project, so a top-level `role` could
+ * come from anywhere. Reading the namespace is what makes "member" mean member
+ * of THIS app. The same key backs `fast_route_private.claims()` in RLS.
+ *
+ * A real member always carries `role` + `tenant_id` (written by the enrollment
+ * sync trigger). Their absence means an authenticated non-member, who must
+ * NEVER be handed a fabricated identity — the /no-access wall (enforced in the
+ * proxy middleware) keeps them out of the app entirely.
  */
 export async function getCurrentUser(): Promise<CurrentUser | null> {
   const supabase = await createClient();
@@ -31,7 +36,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const meta = user.app_metadata as {
+  const meta = (user.app_metadata?.fast_route ?? {}) as {
     role?: UserRole;
     tenant_id?: string;
     permissions?: string[];

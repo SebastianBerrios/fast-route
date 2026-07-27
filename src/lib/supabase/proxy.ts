@@ -58,9 +58,13 @@ export async function updateSession(request: NextRequest) {
 
   if (user) {
     // A valid session in the shared mvp-lab auth pool is NOT proof of belonging.
-    // Membership is proven by the JWT claims the enrollment sync trigger writes:
-    // a real fast_route member always carries role + tenant_id.
-    const claims = user.app_metadata as { role?: string; tenant_id?: string };
+    // Membership is proven by the JWT claims the enrollment sync trigger writes
+    // under the app's OWN key: app_metadata is one blob shared by every app in
+    // the project, so a top-level `role` proves nothing about fast_route.
+    const claims = (user.app_metadata?.fast_route ?? {}) as {
+      role?: string;
+      tenant_id?: string;
+    };
     const isMember = Boolean(claims.role && claims.tenant_id);
 
     // On the login page: members go into the app, non-members to the wall.
