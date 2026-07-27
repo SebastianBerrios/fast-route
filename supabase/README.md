@@ -26,13 +26,27 @@ regenerated afterwards.
 Most business rules are enforced here, not in the React app:
 
 - **Signup / enrollment** — enrollment is explicit, never a signup side effect.
-  The app calls `fast_route.enroll_self()` on the first authenticated session; it
-  creates the tenant + profile (or joins via a valid, unexpired invite) and seeds
-  role permissions via `fast_route_private.default_permissions()`. It is
-  idempotent and a no-op for anyone who did not sign up through this app, so a
-  user from another mvp-lab app sharing the `auth.users` pool never enrolls here.
-  (There is deliberately NO trigger on `auth.users` — that would fire for every
-  app in the shared pool.)
+  Signing up only ever creates a NEW business: the app calls
+  `fast_route.enroll_self()` on the first authenticated session, which creates
+  the tenant + profile with the creator as its admin and seeds role permissions
+  via `fast_route_private.default_permissions()`. It is idempotent and a no-op
+  for anyone who did not sign up through this app, so a user from another
+  mvp-lab app sharing the `auth.users` pool never enrolls here. (There is
+  deliberately NO trigger on `auth.users` — that would fire for every app in the
+  shared pool.)
+- **Joining an existing business** — not self-service. An admin creates the
+  account outright via `createTeamMember` (`src/features/admin/actions.ts`),
+  which writes the `auth.users` row with the service_role key plus the
+  `profiles` row that IS the membership. An email that ALREADY has an account is
+  refused, not linked: creating a business here is public self-service, so
+  "admin" is anyone who signed up, and linking would let any of them enroll a
+  stranger without consent. Consequence: a revoked person cannot be re-added
+  under the same address.
+- **Revoking access** — deleting the `profiles` row, through the caller's own
+  session so RLS enforces the tenant boundary. The `auth.users` row is never
+  deleted: the pool is shared and that account may belong to another app.
+  `fast_route_private.guard_last_admin()` blocks removing OR demoting a
+  business's only admin.
 - **Stock** — delivering an order (`orders.status -> 'delivered'`) fires
   `private.deduct_stock_on_delivery()`, which writes a `sale` movement against the
   product's pool (`coalesce(stock_source_id, id)`); `private.apply_stock_movement()`
@@ -41,10 +55,19 @@ Most business rules are enforced here, not in the React app:
 - **Stock pool integrity** — `private.check_stock_source()` blocks self-links,
   cross-tenant links, and chains (row-locked); `private.prevent_stock_pool_owner_deletion()`
   blocks deleting a product other products draw stock from.
-- **Roles** — `private.guard_role_change()` requires `users.manage` to change a
-  role; `private.sync_role_to_app_metadata()` mirrors role/permissions/tenant into
-  the JWT `app_metadata` (takes effect on the user's next token refresh — see
-  `src/features/shell/SessionSync.tsx`).
+- **Roles** — `fast_route_private.guard_role_change()` requires `users.manage` to
+  change a role; `fast_route_private.sync_role_to_app_metadata()` mirrors
+  role/permissions/tenant into the JWT (takes effect on the user's next token
+  refresh — see `src/features/shell/SessionSync.tsx`).
+- **Claims are namespaced** — they live at `app_metadata -> 'fast_route'`, NEVER
+  at the top level: `app_metadata` is one blob shared by every app in the
+  project, so a top-level `role` proves nothing about this app. Policies never
+  read the blob directly; they go through `fast_route_private.claims()`,
+  `.tenant_id()` and `.has_permission(text)`, so relocating a claim is one edit
+  instead of 25. `tenant_id()` returns NULL for a non-member, and NULL never
+  matches a `tenant_id` column — that is what makes a non-member see nothing.
+  The app-side readers are `src/features/auth/server.ts` and
+  `src/lib/supabase/proxy.ts`.
 
 ## Local development (requires Docker)
 
@@ -54,6 +77,35 @@ supabase link --project-ref vzxrsvqnxkoiuwvdozxv
 supabase migration list   # local files should line up with the remote history
 supabase db reset      # rebuilds a local DB from these migrations
 ```
+
+`supabase start` will NOT re-apply migrations to a local database that already
+exists. If local disagrees with what you expect, run `supabase db reset` — a
+stale local DB once looked like remote drift and was neither.
+
+## Database tests (pgTAP)
+
+```bash
+npm run test:db        # requires the local stack: supabase start
+```
+
+The vitest suite mocks Supabase entirely, so it cannot see a policy, a trigger,
+or a grant. These do:
+
+- `tests/claims_helpers.test.sql` — the three accessors all 26 policies delegate
+  to, including the guarantee that a TOP-LEVEL claim grants nothing.
+- `tests/rls_tenant_isolation.test.sql` — real queries as a real
+  `authenticated` user: cross-tenant reads and writes, a permission the caller
+  lacks, and the authenticated non-member.
+- `tests/revoke_and_last_admin.test.sql` — the revoke policy and the last-admin
+  guard on both delete and demotion.
+
+They run under `set local role authenticated`, which matters more than it
+sounds: a privileged connection can call a function that a real user cannot
+reach, so verifying anything permission-related from the SQL editor gives a
+false pass. That exact gap shipped a broken deploy — see the header of
+`20260727183416_grant_authenticated_access_to_claim_helpers.sql`.
+
+pgTAP is enabled by `supabase/seed.sql`, which is local-only and never pushed.
 
 If `migration list` shows the remote entries as applied but local as missing
 (or vice-versa) after linking, reconcile with `supabase migration repair` before
