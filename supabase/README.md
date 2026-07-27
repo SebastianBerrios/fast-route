@@ -78,6 +78,35 @@ supabase migration list   # local files should line up with the remote history
 supabase db reset      # rebuilds a local DB from these migrations
 ```
 
+`supabase start` will NOT re-apply migrations to a local database that already
+exists. If local disagrees with what you expect, run `supabase db reset` — a
+stale local DB once looked like remote drift and was neither.
+
+## Database tests (pgTAP)
+
+```bash
+npm run test:db        # requires the local stack: supabase start
+```
+
+The vitest suite mocks Supabase entirely, so it cannot see a policy, a trigger,
+or a grant. These do:
+
+- `tests/claims_helpers.test.sql` — the three accessors all 26 policies delegate
+  to, including the guarantee that a TOP-LEVEL claim grants nothing.
+- `tests/rls_tenant_isolation.test.sql` — real queries as a real
+  `authenticated` user: cross-tenant reads and writes, a permission the caller
+  lacks, and the authenticated non-member.
+- `tests/revoke_and_last_admin.test.sql` — the revoke policy and the last-admin
+  guard on both delete and demotion.
+
+They run under `set local role authenticated`, which matters more than it
+sounds: a privileged connection can call a function that a real user cannot
+reach, so verifying anything permission-related from the SQL editor gives a
+false pass. That exact gap shipped a broken deploy — see the header of
+`20260727183416_grant_authenticated_access_to_claim_helpers.sql`.
+
+pgTAP is enabled by `supabase/seed.sql`, which is local-only and never pushed.
+
 If `migration list` shows the remote entries as applied but local as missing
 (or vice-versa) after linking, reconcile with `supabase migration repair` before
 pushing anything new. Docker is required for `supabase db reset` / `supabase start`.

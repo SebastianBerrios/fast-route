@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "test:db": "supabase test db --local"
   },
   "dependencies": {
     "@mapbox/polyline": "^1.2.1",
