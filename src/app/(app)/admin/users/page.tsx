@@ -58,7 +58,7 @@ export default async function AdminUsersPage() {
       </section>
 
       <div>
-        <UsersTable users={users} />
+        <UsersTable users={users} currentUserId={user.id} />
         <p className="mt-3 text-xs text-muted">
           El rol aplica una plantilla de permisos; después podés ajustar acciones
           una por una. Los cambios se aplican cuando esa persona vuelve a iniciar

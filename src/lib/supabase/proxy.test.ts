@@ -28,8 +28,11 @@ function location(res: Response) {
   return loc ? new URL(loc).pathname : null;
 }
 
-const MEMBER = { role: "admin", tenant_id: "t1" };
+// Claims live under the app's own key — app_metadata is shared fleet-wide.
+const MEMBER = { fast_route: { role: "admin", tenant_id: "t1" } };
 const NON_MEMBER = {}; // authenticated in the shared pool, but not a member
+// What another mvp-lab app's claims could look like in the same blob.
+const FOREIGN_CLAIMS = { role: "admin", tenant_id: "t1" };
 
 beforeEach(() => getUser.mockReset());
 
@@ -80,5 +83,17 @@ describe("updateSession — membership wall", () => {
   it("member on /no-access -> / (a member has no business on the wall)", async () => {
     setUser(MEMBER);
     expect(location(await updateSession(req("/no-access")))).toBe("/");
+  });
+
+  it("TOP-LEVEL claims are not membership — only the fast_route namespace is", async () => {
+    // The whole point of namespacing: another app writing a plausible top-level
+    // `role`/`tenant_id` into the shared blob must not open this app's door.
+    setUser(FOREIGN_CLAIMS);
+    expect(location(await updateSession(req("/")))).toBe("/no-access");
+  });
+
+  it("a fast_route namespace missing tenant_id is not membership", async () => {
+    setUser({ fast_route: { role: "admin" } });
+    expect(location(await updateSession(req("/")))).toBe("/no-access");
   });
 });

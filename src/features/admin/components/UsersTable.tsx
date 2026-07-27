@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import {
+ revokeTeamMemberAccess,
  updateUserPermissions,
  updateUserRole,
 } from "@/features/admin/actions";
@@ -23,12 +24,13 @@ export interface AdminUser {
 
 const ROLE_OPTIONS = Object.keys(ROLE_LABELS) as UserRole[];
 
-function UserRow({ user }: { user: AdminUser }) {
+function UserRow({ user, isSelf }: { user: AdminUser; isSelf: boolean }) {
  const [role, setRole] = useState<UserRole>(user.role);
  const [perms, setPerms] = useState<Set<Permission>>(
  new Set(user.permissions),
  );
  const [open, setOpen] = useState(false);
+ const [confirmingRevoke, setConfirmingRevoke] = useState(false);
  const [isPending, startTransition] = useTransition();
  const [error, setError] = useState<string | null>(null);
 
@@ -38,6 +40,24 @@ function UserRow({ user }: { user: AdminUser }) {
  startTransition(async () => {
  const res = await updateUserRole(user.id, next);
  setError(res.error);
+ });
+ };
+
+ const handleRevoke = () => {
+ startTransition(async () => {
+ setError(null);
+ try {
+ const res = await revokeTeamMemberAccess(user.id);
+ if (res.error) {
+ setError(res.error);
+ setConfirmingRevoke(false);
+ }
+ // On success the row disappears with the revalidated page; leaving the
+ // confirm open avoids a flash of "Quitar acceso" on a doomed row.
+ } catch {
+ setError("No se pudo quitar el acceso. Probá de nuevo.");
+ setConfirmingRevoke(false);
+ }
  });
  };
 
@@ -78,9 +98,49 @@ function UserRow({ user }: { user: AdminUser }) {
  >
  Permisos ({perms.size}) {open ? "▲" : "▼"}
  </button>
+ {!isSelf && !confirmingRevoke && (
+ <button
+ type="button"
+ onClick={() => setConfirmingRevoke(true)}
+ disabled={isPending}
+ className="rounded-md px-2 py-1 text-xs text-red-600 transition-colors hover:bg-red-500/10 disabled:opacity-50"
+ >
+ Quitar acceso
+ </button>
+ )}
  {isPending && <span className="text-xs text-muted">Guardando…</span>}
- {error && <span className="text-xs text-red-600">{error}</span>}
+ {error && (
+ <span className="text-xs text-red-600" role="alert">
+ {error}
+ </span>
+ )}
  </div>
+
+ {confirmingRevoke && (
+ <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/5 p-2.5">
+ <p className="min-w-0 flex-1 text-xs">
+ Esta persona pierde el acceso al negocio. Su cuenta sigue existiendo,
+ así que <strong>no vas a poder volver a agregarla con este email</strong>
+ : si algún día vuelve, va a necesitar otra dirección.
+ </p>
+ <button
+ type="button"
+ onClick={handleRevoke}
+ disabled={isPending}
+ className="shrink-0 rounded-md bg-red-600 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-red-600/90 disabled:opacity-50"
+ >
+ {isPending ? "Quitando…" : "Sí, quitar acceso"}
+ </button>
+ <button
+ type="button"
+ onClick={() => setConfirmingRevoke(false)}
+ disabled={isPending}
+ className="shrink-0 rounded-md px-2.5 py-1 text-xs transition-colors hover:bg-black/5 disabled:opacity-50 dark:hover:bg-white/10"
+ >
+ Cancelar
+ </button>
+ </div>
+ )}
 
  {open && (
  <div className="mt-2 grid grid-cols-1 gap-1 border-t border-line pt-2 sm:grid-cols-2 ">
@@ -101,11 +161,19 @@ function UserRow({ user }: { user: AdminUser }) {
  );
 }
 
-export default function UsersTable({ users }: { users: AdminUser[] }) {
+export default function UsersTable({
+ users,
+ currentUserId,
+}: {
+ users: AdminUser[];
+ /** Used to hide the revoke control on your own row — removing your own
+  * membership is a lockout, and the server refuses it anyway. */
+ currentUserId: string;
+}) {
  return (
  <ul className="divide-y divide-line rounded-xl border border-line">
  {users.map((user) => (
- <UserRow key={user.id} user={user} />
+ <UserRow key={user.id} user={user} isSelf={user.id === currentUserId} />
  ))}
  </ul>
  );
