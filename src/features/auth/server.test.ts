@@ -49,6 +49,7 @@ describe("getCurrentUser — membership gate", () => {
     expect(await getCurrentUser()).toEqual({
       id: "u1",
       email: "a@b.c",
+      tenantId: "t1",
       role: "admin",
       permissions: ["orders.manage"],
     });
@@ -59,6 +60,7 @@ describe("getCurrentUser — membership gate", () => {
     expect(await getCurrentUser()).toEqual({
       id: "u1",
       email: "a@b.c",
+      tenantId: "t1",
       role: "driver",
       permissions: [],
     });

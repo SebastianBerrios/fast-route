@@ -96,53 +96,6 @@ export type Database = {
           },
         ]
       }
-      invites: {
-        Row: {
-          code: string
-          created_at: string
-          created_by: string | null
-          email: string | null
-          expires_at: string
-          id: string
-          role: Database["fast_route"]["Enums"]["user_role"]
-          tenant_id: string
-          used_at: string | null
-          used_by: string | null
-        }
-        Insert: {
-          code?: string
-          created_at?: string
-          created_by?: string | null
-          email?: string | null
-          expires_at?: string
-          id?: string
-          role?: Database["fast_route"]["Enums"]["user_role"]
-          tenant_id?: string
-          used_at?: string | null
-          used_by?: string | null
-        }
-        Update: {
-          code?: string
-          created_at?: string
-          created_by?: string | null
-          email?: string | null
-          expires_at?: string
-          id?: string
-          role?: Database["fast_route"]["Enums"]["user_role"]
-          tenant_id?: string
-          used_at?: string | null
-          used_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "invites_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       order_items: {
         Row: {
           created_at: string
@@ -481,59 +434,6 @@ export type Database = {
       [_ in never]: never
     }
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
-  public: {
-    Tables: {
-      rls_managed_schemas: {
-        Row: {
-          schema_name: string
-        }
-        Insert: {
-          schema_name: string
-        }
-        Update: {
-          schema_name?: string
-        }
-        Relationships: []
-      }
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      [_ in never]: never
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
 }
 
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
@@ -660,11 +560,5 @@ export const Constants = {
       stock_reason: ["purchase", "sale", "adjustment"],
       user_role: ["admin", "seller", "driver"],
     },
-  },
-  graphql_public: {
-    Enums: {},
-  },
-  public: {
-    Enums: {},
   },
 } as const

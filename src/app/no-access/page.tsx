@@ -36,7 +36,7 @@ export default function NoAccessPage() {
         <h1 className="text-xl font-semibold tracking-tight">Sin acceso</h1>
         <p className="mt-2 text-sm text-muted">
           Tu cuenta no pertenece a Fast Route. Si creés que es un error, pedile a
-          un administrador de tu negocio que te envíe una invitación.
+          un administrador de tu negocio que te cree una cuenta.
         </p>
 
         <form action={signOut} className="mt-6">

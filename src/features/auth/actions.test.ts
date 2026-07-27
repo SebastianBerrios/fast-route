@@ -55,14 +55,14 @@ describe("authenticate — enrollment orchestration", () => {
 
   it("sign-in: an enrollment error is surfaced and blocks the redirect", async () => {
     signInWithPassword.mockResolvedValue({ error: null });
-    rpc.mockResolvedValue({ error: { message: "Invitación inválida o expirada" } });
+    rpc.mockResolvedValue({ error: { message: "Not authenticated" } });
 
     const res = await authenticate(
       {},
       fd({ intent: "signin", email: "a@b.c", password: "pw" }),
     );
 
-    expect(res).toEqual({ error: "Invitación inválida o expirada" });
+    expect(res).toEqual({ error: "Not authenticated" });
     expect(refreshSession).not.toHaveBeenCalled();
     expect(redirect).not.toHaveBeenCalled();
   });
@@ -112,19 +112,34 @@ describe("authenticate — enrollment orchestration", () => {
     errSpy.mockRestore();
   });
 
-  it("sign-up with an invite: nests invite_code under fast_route (not business_name)", async () => {
+  it("sign-up without a business name is rejected: there is no join-a-business path", async () => {
+    const res = await authenticate(
+      {},
+      fd({ intent: "signup", email: "a@b.c", password: "pw" }),
+    );
+
+    expect(res).toEqual({ error: "Ingresá el nombre de tu negocio." });
+    expect(signUp).not.toHaveBeenCalled();
+  });
+
+  it("sign-up ignores a client-supplied invite_code — the field carries no meaning", async () => {
     signUp.mockResolvedValue({ data: { session: { access_token: "t" } }, error: null });
 
     await authenticate(
       {},
-      fd({ intent: "signup", email: "a@b.c", password: "pw", invite_code: "abc123" }),
+      fd({
+        intent: "signup",
+        email: "a@b.c",
+        password: "pw",
+        business_name: "Acme",
+        invite_code: "abc123",
+      }),
     );
 
     expect(signUp).toHaveBeenCalledWith(
       expect.objectContaining({
         options: expect.objectContaining({
-          emailRedirectTo: "https://test.app/login",
-          data: expect.objectContaining({ fast_route: { invite_code: "abc123" } }),
+          data: expect.objectContaining({ fast_route: { business_name: "Acme" } }),
         }),
       }),
     );
