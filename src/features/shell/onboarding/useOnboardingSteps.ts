@@ -16,7 +16,6 @@ interface Counts {
   products: number;
   customers: number;
   team: number;
-  pendingInvites: number;
 }
 
 const STEP_PERMISSIONS: Record<OnboardingStepId, Permission> = {
@@ -30,14 +29,14 @@ function computeSteps(
   permissions: Permission[],
 ): OnboardingStep[] {
   // Master gate: the setup flow is for business owners (products.manage).
-  // Invited members (sellers, drivers) never see the card or the wizard,
-  // even when they hold permissions for individual steps.
+  // Members added by an admin (sellers, drivers) never see the card or the
+  // wizard, even when they hold permissions for individual steps.
   if (!can(permissions, "products.manage")) return [];
   const all: OnboardingStep[] = [
     { id: "products", done: counts.products > 0 },
     { id: "customers", done: counts.customers > 0 },
-    // Outstanding invites count as done: the owner already did their part.
-    { id: "team", done: counts.team > 1 || counts.pendingInvites > 0 },
+    // The owner's own profile is the first row, so a team exists at two.
+    { id: "team", done: counts.team > 1 },
   ];
   return all.filter((s) => can(permissions, STEP_PERMISSIONS[s.id]));
 }
@@ -67,22 +66,16 @@ export function useOnboardingSteps(userId: string, permissions: Permission[]) {
   }, []);
 
   const refresh = useCallback(async () => {
-    const [p, c, t, i] = await Promise.all([
+    const [p, c, t] = await Promise.all([
       supabase.from("products").select("id", { count: "exact", head: true }),
       supabase.from("customers").select("id", { count: "exact", head: true }),
       supabase.from("profiles").select("id", { count: "exact", head: true }),
-      // Same pending filter as the admin invites list (used_at is null).
-      supabase
-        .from("invites")
-        .select("id", { count: "exact", head: true })
-        .is("used_at", null),
     ]);
     if (!mounted.current) return;
     const next: Counts = {
       products: p.count ?? 0,
       customers: c.count ?? 0,
       team: t.count ?? 0,
-      pendingInvites: i.count ?? 0,
     };
     setCounts(next);
 

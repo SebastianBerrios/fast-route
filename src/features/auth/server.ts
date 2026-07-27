@@ -6,6 +6,9 @@ import type { UserRole } from "@/features/auth/domain/roles";
 export interface CurrentUser {
   id: string;
   email: string;
+  /** The business this member belongs to. Exposed because server-side writes
+   *  that bypass RLS (see lib/supabase/admin) must scope themselves to it. */
+  tenantId: string;
   role: UserRole;
   permissions: Permission[];
 }
@@ -39,6 +42,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   return {
     id: user.id,
     email: user.email ?? "",
+    tenantId: meta.tenant_id,
     role: meta.role,
     permissions: (meta.permissions ?? []) as Permission[],
   };

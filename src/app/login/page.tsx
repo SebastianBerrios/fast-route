@@ -3,12 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import AuthForm from "@/features/auth/components/AuthForm";
 import ThemeToggle from "@/features/shell/ThemeToggle";
 
-export default async function LoginPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ invite?: string }>;
-}) {
-  const { invite } = await searchParams;
+export default async function LoginPage() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -40,7 +35,7 @@ export default async function LoginPage({
             Fast Route
           </span>
         </div>
-        <AuthForm inviteCode={invite} />
+        <AuthForm />
       </div>
     </main>
   );

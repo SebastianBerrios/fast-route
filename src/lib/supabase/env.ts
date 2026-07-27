@@ -16,3 +16,21 @@ export function getSupabaseEnv() {
   }
   return { url, anonKey };
 }
+
+/**
+ * Reads the service_role key. It bypasses Row Level Security entirely, so it is
+ * deliberately NOT prefixed with NEXT_PUBLIC_ — it must never reach the browser
+ * bundle. Only server-only modules may call this.
+ */
+export function getServiceRoleEnv() {
+  const { url } = getSupabaseEnv();
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!serviceRoleKey) {
+    throw new Error(
+      "Missing SUPABASE_SERVICE_ROLE_KEY. Creating team accounts needs the " +
+        "service_role key server-side; add it to your .env.local.",
+    );
+  }
+  return { url, serviceRoleKey };
+}

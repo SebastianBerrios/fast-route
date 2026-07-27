@@ -7,7 +7,7 @@ import { insertProduct } from "@/features/products/services/products";
 import { insertCustomer } from "@/features/customers/services/customers";
 import ProductForm from "@/features/products/components/ProductForm";
 import CustomerForm from "@/features/customers/components/CustomerForm";
-import InviteGenerator from "@/features/admin/components/InviteGenerator";
+import CreateMemberForm from "@/features/admin/components/CreateMemberForm";
 import {
   formatPrice,
   type ProductInput,
@@ -243,11 +243,11 @@ function CustomerStep({
 function TeamStep({ done, onDone }: { done: boolean; onDone: () => void }) {
   return (
     <div className="flex flex-col gap-3">
-      <InviteGenerator onGenerated={() => onDone()} />
+      <CreateMemberForm onCreated={() => onDone()} />
       {done && (
         <p className="rounded-lg border border-green-600/30 bg-green-600/10 p-2.5 text-sm text-green-700 dark:text-green-400">
-          Invitación lista. Compartí el link con tu equipo: cuando entren, van
-          a aparecer en tu negocio con el rol que elegiste.
+          Tu equipo ya tiene cuenta. Pueden ingresar con el email y la
+          contraseña que les diste, con el rol que elegiste.
         </p>
       )}
     </div>

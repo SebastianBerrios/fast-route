@@ -263,11 +263,13 @@ function CityCombobox({
   );
 }
 
-export default function AuthForm({ inviteCode }: { inviteCode?: string }) {
-  const joining = Boolean(inviteCode);
-  const [mode, setMode] = useState<"signin" | "signup">(
-    joining ? "signup" : "signin",
-  );
+/**
+ * Sign in, or sign up to create a NEW business. Joining an existing business is
+ * deliberately not possible here: an admin of that business creates the account
+ * (see features/admin/actions.ts), so membership is never self-granted.
+ */
+export default function AuthForm() {
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [state, formAction, isPending] = useActionState(
     authenticate,
     initialState,
@@ -280,7 +282,7 @@ export default function AuthForm({ inviteCode }: { inviteCode?: string }) {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     // Creating a business requires a city picked from the suggestions so we
     // get unambiguous coordinates — free text alone is not enough.
-    if (isSignup && !joining && !selectedCity) {
+    if (isSignup && !selectedCity) {
       e.preventDefault();
       setCityError("Elegí una ciudad de la lista de sugerencias.");
     }
@@ -288,18 +290,8 @@ export default function AuthForm({ inviteCode }: { inviteCode?: string }) {
 
   return (
     <div className="w-full rounded-2xl border border-line bg-surface p-6 shadow-sm">
-      {joining && (
-        <div className="mb-4 rounded-lg border border-brand/40 bg-brand/5 p-3 text-sm text-brand">
-          Te invitaron a un negocio. Creá tu cuenta para unirte al equipo.
-        </div>
-      )}
-
       <p className="mb-6 text-center text-sm text-muted">
-        {joining
-          ? "Unite al equipo"
-          : isSignup
-            ? "Creá tu negocio"
-            : "Ingresá a tu cuenta"}
+        {isSignup ? "Creá tu negocio" : "Ingresá a tu cuenta"}
       </p>
 
       <form
@@ -308,11 +300,8 @@ export default function AuthForm({ inviteCode }: { inviteCode?: string }) {
         className="flex flex-col gap-3"
       >
         <input type="hidden" name="intent" value={mode} />
-        {joining && (
-          <input type="hidden" name="invite_code" value={inviteCode} />
-        )}
 
-        {isSignup && !joining && (
+        {isSignup && (
           <>
             <label className="flex flex-col gap-1 text-sm">
               <span className={labelClass}>Nombre del negocio</span>
@@ -412,33 +401,23 @@ export default function AuthForm({ inviteCode }: { inviteCode?: string }) {
           disabled={isPending}
           className="mt-2 rounded-lg bg-brand px-4 py-2.5 font-medium text-white shadow-sm transition-colors hover:bg-brand/90 disabled:opacity-50"
         >
-          {isPending
-            ? "Procesando…"
-            : joining
-              ? "Unirme al equipo"
-              : isSignup
-                ? "Crear cuenta"
-                : "Ingresar"}
+          {isPending ? "Procesando…" : isSignup ? "Crear cuenta" : "Ingresar"}
         </button>
       </form>
 
-      {!joining && (
-        <button
-          type="button"
-          onClick={() => {
-            setMode(isSignup ? "signin" : "signup");
-            // The combobox unmounts on mode change; a stale pick or error
-            // must not survive a later return to signup.
-            setSelectedCity(null);
-            setCityError(null);
-          }}
-          className="mt-4 w-full text-center text-sm text-brand hover:underline"
-        >
-          {isSignup
-            ? "¿Ya tenés cuenta? Ingresá"
-            : "¿No tenés cuenta? Registrate"}
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={() => {
+          setMode(isSignup ? "signin" : "signup");
+          // The combobox unmounts on mode change; a stale pick or error
+          // must not survive a later return to signup.
+          setSelectedCity(null);
+          setCityError(null);
+        }}
+        className="mt-4 w-full text-center text-sm text-brand hover:underline"
+      >
+        {isSignup ? "¿Ya tenés cuenta? Ingresá" : "¿No tenés cuenta? Registrate"}
+      </button>
     </div>
   );
 }

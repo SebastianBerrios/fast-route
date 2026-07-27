@@ -49,7 +49,6 @@ export async function authenticate(
   const country = /^[A-Za-z]{2,3}$/.test(rawCountry) ? rawCountry : "";
   const centerLng = parseCoordinate(formData.get("center_lng"), 180);
   const centerLat = parseCoordinate(formData.get("center_lat"), 90);
-  const inviteCode = String(formData.get("invite_code") ?? "").trim();
 
   if (!email || !password) {
     return { error: "Ingresá tu email y contraseña." };
@@ -58,9 +57,11 @@ export async function authenticate(
   const supabase = await createClient();
 
   if (intent === "signup") {
-    // With an invite the user joins an existing business; otherwise they must
-    // name the new business they're creating.
-    if (!inviteCode && !businessName) {
+    // Signing up only ever creates a NEW business. Joining an existing one is
+    // not self-service: an admin of that business creates the account
+    // server-side (features/admin/actions.ts), because in the shared mvp-lab
+    // auth pool membership must be an explicit act by an admin of THIS app.
+    if (!businessName) {
       return { error: "Ingresá el nombre de tu negocio." };
     }
 
@@ -71,7 +72,7 @@ export async function authenticate(
     const businessData: Record<string, string | number> = {
       business_name: businessName,
     };
-    if (!inviteCode && city) {
+    if (city) {
       businessData.city = city;
       if (centerLng != null && centerLat != null) {
         businessData.center_lng = centerLng;
@@ -106,7 +107,7 @@ export async function authenticate(
         emailRedirectTo: `${origin}/login`,
         data: {
           full_name: fullName,
-          fast_route: inviteCode ? { invite_code: inviteCode } : businessData,
+          fast_route: businessData,
         },
       },
     });
