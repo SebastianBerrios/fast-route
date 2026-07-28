@@ -24,6 +24,7 @@ export default function CreateMemberForm({ onCreated }: CreateMemberFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -85,18 +86,35 @@ export default function CreateMemberForm({ onCreated }: CreateMemberFormProps) {
       </label>
 
       <div className="flex flex-wrap gap-3">
-        <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
-          <span className={labelClass}>Contraseña inicial</span>
-          <input
-            name="password"
-            type="text"
-            required
-            minLength={6}
-            autoComplete="off"
-            placeholder="Al menos 6 caracteres"
-            className={inputClass}
-          />
-        </label>
+        <div className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
+          <label htmlFor="new-member-password" className={labelClass}>
+            Contraseña inicial
+          </label>
+          {/* Masked by default, with a reveal. The admin has to read this back
+              to hand it over, so hiding it outright invites typos in a
+              credential nobody can recover — but leaving it on screen puts a
+              real password in front of whoever walks past. */}
+          <div className="relative">
+            <input
+              id="new-member-password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              required
+              minLength={6}
+              autoComplete="off"
+              placeholder="Al menos 6 caracteres"
+              className={`${inputClass} w-full pr-16`}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-pressed={showPassword}
+              className="absolute inset-y-0 right-0 px-3 text-xs text-brand hover:underline"
+            >
+              {showPassword ? "Ocultar" : "Ver"}
+            </button>
+          </div>
+        </div>
 
         <label className="flex flex-col gap-1 text-sm">
           <span className={labelClass}>Rol</span>

@@ -85,7 +85,7 @@ stale local DB once looked like remote drift and was neither.
 ## Database tests (pgTAP)
 
 ```bash
-npm run test:db        # requires the local stack: supabase start
+pnpm test:db           # requires the local stack: supabase start
 ```
 
 The vitest suite mocks Supabase entirely, so it cannot see a policy, a trigger,
