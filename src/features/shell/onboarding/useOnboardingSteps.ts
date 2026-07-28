@@ -12,7 +12,7 @@ export interface OnboardingStep {
   done: boolean;
 }
 
-interface Counts {
+export interface Counts {
   products: number;
   customers: number;
   team: number;
@@ -24,7 +24,9 @@ const STEP_PERMISSIONS: Record<OnboardingStepId, Permission> = {
   team: "users.manage",
 };
 
-function computeSteps(
+/** Exported for tests: this is the gating logic, and it is worth pinning
+ *  without standing up a Supabase client to reach it. */
+export function computeSteps(
   counts: Counts,
   permissions: Permission[],
 ): OnboardingStep[] {
